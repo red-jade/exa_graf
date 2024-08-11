@@ -8,7 +8,7 @@ defmodule Exa.Graf.DotWriterTest do
 
   import Exa.Graf.DotWriter
 
-  @out_dir ["test", "output", "dot"]
+  @out_dir ["test", "output", "graf", "dot"]
   defp file(name), do: Exa.File.join(@out_dir, name, @filetype_dot)
 
   @simple_dot ~s|digraph simple {

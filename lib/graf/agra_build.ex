@@ -19,13 +19,13 @@ defmodule Exa.Graf.AgraBuild do
 
   @doc "Disconnected dust topology."
   @spec dust(E.count1()) :: G.agra()
-  def dust(n) when is_count1(n), do: Agra.new("dust", [1..n])
+  def dust(n) when is_count1(n), do: Agra.new("dust_#{n}", [1..n])
 
   @doc "Simple directed line topology."
   @spec line(E.count1()) :: G.agra()
   def line(n) when is_count1(n) do
     Agra.new(
-      "line",
+      "line_#{n}",
       Enum.reduce(2..n, [], fn i, g -> [{i - 1, i} | g] end)
     )
   end
@@ -34,7 +34,7 @@ defmodule Exa.Graf.AgraBuild do
   @spec ring(E.count1()) :: G.agra()
   def ring(n) when is_count1(n) do
     Agra.new(
-      "ring",
+      "ring_#{n}",
       Enum.reduce(2..n, [{n, 1}], fn i, g -> [{i - 1, i} | g] end)
     )
   end
@@ -42,14 +42,14 @@ defmodule Exa.Graf.AgraBuild do
   @doc "Star topology directed outwards."
   @spec fan_out(E.count1()) :: G.agra()
   def fan_out(n) when is_integer(n) and n > 2 do
-    Agra.new("fan_out", Enum.reduce(2..n, [], fn i, g -> [{1, i} | g] end))
+    Agra.new("fan_out_#{n}", Enum.reduce(2..n, [], fn i, g -> [{1, i} | g] end))
   end
 
   @doc "Star topology directed inwards."
   @spec fan_in(E.count1()) :: G.agra()
   def fan_in(n) when is_integer(n) and n > 2 do
     Agra.new(
-      "fan_in",
+      "fan_in_#{n}",
       Enum.reduce(2..n, [], fn i, g -> [{i, 1} | g] end)
     )
   end
@@ -58,7 +58,7 @@ defmodule Exa.Graf.AgraBuild do
   @spec wheel(E.count1()) :: G.agra()
   def wheel(n) when is_integer(n) and n > 3 do
     Agra.new(
-      "wheel",
+      "wheel_#{n}",
       Enum.reduce(2..n, [{n, 2}], fn i, g ->
         [{1, i}, {i - 1, i} | g]
       end)
@@ -69,7 +69,7 @@ defmodule Exa.Graf.AgraBuild do
   @spec clique(E.count1()) :: G.agra()
   def clique(n) when is_count1(n) do
     Agra.new(
-      "clique",
+      "clique_#{n}",
       Enum.reduce(1..n, [], fn i, g ->
         Enum.reduce(1..n, g, fn
           j, g when i != j -> [{i, j} | g]

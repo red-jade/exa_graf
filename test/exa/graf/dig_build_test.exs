@@ -13,7 +13,7 @@ defmodule Exa.Graf.DigBuildTest do
   @dig_out_dir Path.join(["test", "output", "graf", "dig"])
 
   test "dig dust" do
-    {h1in, h1out, h1inout, h2inout} = digger("dust", &DigBuild.dust/1)
+    {h1in, h1out, h1inout, h2inout} = digger(&DigBuild.dust/1)
     assert h1in == [10]
     assert h1out == [10]
     assert h1inout == [10]
@@ -21,7 +21,7 @@ defmodule Exa.Graf.DigBuildTest do
   end
 
   test "dig line   " do
-    {h1in, h1out, h1inout, h2inout} = digger("line", &DigBuild.line/1)
+    {h1in, h1out, h1inout, h2inout} = digger(&DigBuild.line/1)
     assert h1in == [1, 9]
     assert h1out == [1, 9]
     assert h1inout == [0, 2, 8]
@@ -29,7 +29,7 @@ defmodule Exa.Graf.DigBuildTest do
   end
 
   test "dig ring   " do
-    {h1in, h1out, h1inout, h2inout} = digger("ring", &DigBuild.ring/1)
+    {h1in, h1out, h1inout, h2inout} = digger(&DigBuild.ring/1)
     assert h1in == [0, 10]
     assert h1out == [0, 10]
     assert h1inout == [0, 0, 10]
@@ -37,7 +37,7 @@ defmodule Exa.Graf.DigBuildTest do
   end
 
   test "dig fan_in " do
-    {h1in, h1out, h1inout, h2inout} = digger("fan_in", &DigBuild.fan_in/1)
+    {h1in, h1out, h1inout, h2inout} = digger(&DigBuild.fan_in/1)
     assert h1in == [9, 0, 0, 0, 0, 0, 0, 0, 0, 1]
     assert h1out == [1, 9]
     assert h1inout == [0, 9, 0, 0, 0, 0, 0, 0, 0, 1]
@@ -45,7 +45,7 @@ defmodule Exa.Graf.DigBuildTest do
   end
 
   test "dig fan_out" do
-    {h1in, h1out, h1inout, h2inout} = digger("fan_out", &DigBuild.fan_out/1)
+    {h1in, h1out, h1inout, h2inout} = digger(&DigBuild.fan_out/1)
     assert h1in == [1, 9]
     assert h1out == [9, 0, 0, 0, 0, 0, 0, 0, 0, 1]
     assert h1inout == [0, 9, 0, 0, 0, 0, 0, 0, 0, 1]
@@ -53,7 +53,7 @@ defmodule Exa.Graf.DigBuildTest do
   end
 
   test "dig wheel  " do
-    {h1in, h1out, h1inout, h2inout} = digger("wheel", &DigBuild.wheel/1)
+    {h1in, h1out, h1inout, h2inout} = digger(&DigBuild.wheel/1)
     assert h1in == [1, 0, 9]
     assert h1out == [0, 9, 0, 0, 0, 0, 0, 0, 0, 1]
     assert h1inout == [0, 0, 0, 9, 0, 0, 0, 0, 0, 1]
@@ -61,7 +61,7 @@ defmodule Exa.Graf.DigBuildTest do
   end
 
   test "dig clique " do
-    {h1in, h1out, h1inout, h2inout} = digger("clique", &DigBuild.clique/1)
+    {h1in, h1out, h1inout, h2inout} = digger(&DigBuild.clique/1)
     assert h1in == [0, 0, 0, 0, 0, 0, 0, 0, 0, 10]
     assert h1out == [0, 0, 0, 0, 0, 0, 0, 0, 0, 10]
     assert h1inout == [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10]
@@ -69,7 +69,7 @@ defmodule Exa.Graf.DigBuildTest do
   end
 
   test "dig grid2d" do
-    {h1in, h1out, h1inout, h2inout} = DigBuild.grid2d(4, 3) |> render("grid2d")
+    {h1in, h1out, h1inout, h2inout} = DigBuild.grid2d(4, 3) |> render()
     assert h1in == [0, 0, 4, 6, 2]
     assert h1out == [0, 0, 4, 6, 2]
     assert h1inout == [0, 0, 0, 0, 4, 0, 6, 0, 2]
@@ -78,24 +78,24 @@ defmodule Exa.Graf.DigBuildTest do
 
   test "dig random" do
     g = DigBuild.random(@n, 2 * @n)
-    render(g, "grid2d")
     assert @n == Dig.nvert(g)
     assert 2 * @n == Dig.nedge(g)
+    render(g)
   end
 
   # -----------------
   # private utilities
   # -----------------
 
-  defp digger(name, fun_new), do: render(fun_new.(@n), name)
+  defp digger(fun_new), do: render(fun_new.(@n))
 
-  defp render(g, title) do
+  defp render(g) do
     h1in = g |> Dig.degree_histo1d(:in) |> Histo1D.to_list()
     h1out = g |> Dig.degree_histo1d(:out) |> Histo1D.to_list()
     h1inout = g |> Dig.degree_histo1d(:inout) |> Histo1D.to_list()
     h2inout = g |> Dig.degree_histo2d() |> Histo2D.to_list()
 
-    {dotfile, _dot} = Dig.to_dot_file(g, @dig_out_dir, title)
+    {dotfile, _dot} = Dig.to_dot_file(g, @dig_out_dir)
 
     Enum.each([:png, :svg], fn fmt ->
       DotRender.render_dot(dotfile, fmt, @dig_out_dir)

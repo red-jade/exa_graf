@@ -249,6 +249,8 @@ defmodule Exa.Graf.Dig do
     end
   end
 
+  defp do_add(dig, {src, []}), do: do_add(dig, src)
+
   defp do_add(dig, {src, dsts}) when is_list(dsts) do
     Enum.each(dsts, fn dst -> do_add(dig, {src, dst}) end)
   end
@@ -337,7 +339,7 @@ defmodule Exa.Graf.Dig do
   as a key for global properties in the graph attribute map,
   and as the basename for the output file.
 
-  Return the DOT text as `chardata` and the full output filename.
+  Return the DOT text as `IO.chardata` and the full output filename.
 
   Use `Exa.Dot.Render.render_dot/3` 
   to convert the DOT file to PNG or SVG.
@@ -362,17 +364,38 @@ defmodule Exa.Graf.Dig do
 
   @doc """
   Read DOT file into digraph.
+
+  The graph name will be the internal DOT digraph name, 
+  not the file basename.
   """
   @spec from_dot_file(E.filename()) :: {G.dig(), D.graph_attrs()}
   def from_dot_file(filename) when is_filename(filename) do
-    # TODO?
     # use DOT filename or internal graph name?
     # must be the graph name to correlate with gattrs
     # maybe issue warning when they are different
-    {_dir, name, _types} = Exa.File.split(filename)
-    {agr, gattrs} = DotReader.from_dot_file(filename)
-    g = new(name) |> add(Agra.edges(agr)) |> add(Agra.verts(agr))
-    {g, gattrs}
+    # {_dir, fname, _types} = Exa.File.split(filename)
+    {agra, gattrs} = DotReader.from_dot_file(filename)
+    {from_agra(agra), gattrs}
+  end
+
+  @doc """
+  Convert an agraph to a digraph.
+  """
+  @spec from_agra(G.agra()) :: G.dig()
+  def from_agra({:agra, gname, {_inadj, outadj}}) do
+    {:dig, ^gname, dig} = g = new(gname)
+    Enum.each(outadj, fn {src, dset} -> 
+      do_add(dig, {src, MapSet.to_list(dset)})
+    end)
+    g
+  end
+
+  @doc """
+  Convert a digraph to an agraph.
+  """
+  @spec to_agra(G.dig()) :: G.agra()
+  def to_agra({:dig, gname, _dig}=g) do
+    Agra.new(gname) |> Agra.add(edges(g)) |> Agra.add(verts(g))
   end
 
   # ----------

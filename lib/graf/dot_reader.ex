@@ -19,15 +19,18 @@ defmodule Exa.Graf.DotReader do
   # local types
   # -----------
 
-  # graph is built using list of verts and edges
-  # but also a hacky return of graph/cluster names
-  @typep gdata() :: [G.vert() | G.edge() | String.t()]
+  # internal graph data from DOT is just verts and edges
+  @typep gdata() :: [G.vert() | G.edge()]
 
   @doc """
   Read a DOT file.
 
-  The result will be an agraph using the file base name as the graph name. 
-  The actual digraph name in the file will be ignored. 
+  The result will be an agraph using the 
+  internal DOT digraph name as the graph name. 
+
+  Note that the digraph name is used to key global attributes,
+  so if the client renames the graph, the attributes must be rekeyed
+  to be consistent.
 
   Comment lines beginning with `'//'` or `'#'` are ignored.
   """
@@ -37,11 +40,7 @@ defmodule Exa.Graf.DotReader do
   def from_dot_file(filename) when is_filename(filename) do
     case Exa.File.from_file_text(filename, comments: ["//", "#"]) do
       text when is_string(text) ->
-        # TODO - give option to set name, force file name, or graph name
-        #        note the graph name will be used as a key for attributes
-        #        so the gattrs needs to be re-keyed
-        {_dir, gname, _types} = Exa.File.split(filename)
-        {gdata, als, gattrs} = text |> to_charlist() |> lex() |> parse()
+        {gname, gdata, als, gattrs} = text |> to_charlist() |> lex() |> parse()
 
         # add the alias into the attributes
         new_gattrs =
@@ -49,11 +48,8 @@ defmodule Exa.Graf.DotReader do
             new_attrs = gattrs |> Map.get(id, []) |> Keyword.put(@alias, str)
             Map.put(gattrs, id, new_attrs)
           end)
-
-        # hacky removal of graph name
-        new_gdata = Enum.filter(gdata, fn d -> not is_string(d) end)
-
-        {Agra.new(gname, new_gdata), new_gattrs}
+       
+        {Agra.new(gname, gdata), new_gattrs}
 
       {:error, _} = err ->
         err
@@ -93,9 +89,9 @@ defmodule Exa.Graf.DotReader do
   # ------
 
   # parse a series of tokens to create a graph and metadata
-  @spec parse([tok()]) :: {gdata(), D.aliases(), D.graph_attrs()}
+  @spec parse([tok()]) :: {G.gname(), gdata(), D.aliases(), D.graph_attrs()}
   defp parse([:digraph, gname, :open_brace | toks]) do
-    # TODO - how to return the graph name?
+    # digraph name will be the last entry in the stack
     parse(toks, [], {1, %{}, [to_string(gname)], %{}})
   end
 
@@ -177,8 +173,9 @@ defmodule Exa.Graf.DotReader do
   end
 
   # the final close brace to end the graph definition
-  defp parse([:close_brace], g, {_next, als, [_], gattrs}) do
-    {Enum.reverse(g), als, gattrs}
+  # the digraph name is the remaining entry in the stack
+  defp parse([:close_brace], g, {_next, als, [gname], gattrs}) do
+    {gname, Enum.reverse(g), als, gattrs}
   end
 
   # close brace at end the anonymous rank group, or subgroup cluster

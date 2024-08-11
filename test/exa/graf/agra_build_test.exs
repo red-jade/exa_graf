@@ -102,12 +102,12 @@ defmodule Exa.Graf.AgraBuildTest do
   # read/write AGR format
 
   test "to file" do
-    path = AgraBuild.line(@n) |> Agra.to_agr_file(@out_dir)
-    assert path == Path.join([@out_dir, "line.agr"])
+    path = AgraBuild.line(@n) |> Agra.to_agra_file(@out_dir)
+    assert path == Path.join([@out_dir, "line_#{@n}.agr"])
   end
 
   test "from file" do
-    line = "line" |> in_file() |> Agra.from_agr_file()
+    line = "line_#{@n}" |> in_file() |> Agra.from_agra_file()
     assert Agra.equal?(line, AgraBuild.line(@n))
   end
 
@@ -123,7 +123,7 @@ defmodule Exa.Graf.AgraBuildTest do
     h1inout = g |> Agra.degree_histo1d(:inout) |> Histo1D.to_list()
     h2inout = g |> Agra.degree_histo2d() |> Histo2D.to_list()
 
-    case Agra.to_agr_file(g, @out_dir) do
+    case Agra.to_agra_file(g, @out_dir) do
       {:error, msg} ->
         raise msg
 

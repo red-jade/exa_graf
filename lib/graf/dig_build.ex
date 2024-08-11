@@ -9,7 +9,6 @@ defmodule Exa.Graf.DigBuild do
   alias Exa.Random
 
   alias Exa.Graf.Types, as: G
-  alias Exa.Graf.DotTypes, as: D
 
   alias Exa.Graf.Dig
 
@@ -19,46 +18,46 @@ defmodule Exa.Graf.DigBuild do
 
   @doc "Disconnected dust topology."
   @spec dust(E.count1()) :: G.dig()
-  def dust(n) when is_count1(n), do: Dig.new("dust", [1..n])
+  def dust(n) when is_count1(n), do: Dig.new("dust_#{n}", [1..n])
 
   @doc "Simple directed line topology."
   @spec line(E.count1()) :: G.dig()
   def line(n) when is_count1(n) do
-    g = "line" |> Dig.new() |> Dig.add(1)
+    g = "line_#{n}" |> Dig.new() |> Dig.add(1)
     Enum.reduce(2..n, g, fn i, g -> Dig.add(g,{i - 1, i}) end)
   end
 
   @doc "Simple ring topology."
   @spec ring(E.count1()) :: G.dig()
   def ring(n) when is_count1(n) do
-    n |> line() |> Dig.add({n, 1}) |> Dig.rename("ring")
+    n |> line() |> Dig.add({n, 1}) |> Dig.rename("ring_#{n}")
   end
 
   @doc "Star topology directed outwards."
   @spec fan_out(E.count1()) :: G.dig()
   def fan_out(n) when is_integer(n) and n > 2 do
-    g = "fan_out" |> Dig.new() |> Dig.add(1)
+    g = "fan_out_#{n}" |> Dig.new() |> Dig.add(1)
     Enum.reduce(2..n, g, fn i, g -> Dig.add(g, {1, i}) end)
   end
 
   @doc "Star topology directed inwards."
   @spec fan_in(E.count1()) :: G.dig()
   def fan_in(n) when is_integer(n) and n > 2 do
-    g = "fan_in" |> Dig.new() |> Dig.add(1)
+    g = "fan_in_#{n}" |> Dig.new() |> Dig.add(1)
     Enum.reduce(2..n, g, fn i, g -> Dig.add(g, {i, 1}) end)
   end
 
   @doc "Wheel topology directed outwards."
   @spec wheel(E.count1()) :: G.dig()
   def wheel(n) when is_integer(n) and n > 3 do
-    g = n |> fan_out() |> Dig.add({n, 2}) |> Dig.rename("wheel")
+    g = n |> fan_out() |> Dig.add({n, 2}) |> Dig.rename("wheel_#{n}")
     Enum.reduce(3..n, g, fn i, g -> Dig.add(g, {i - 1, i}) end)
   end
 
   @doc "Clique fully connected in both directions."
   @spec clique(E.count1()) :: G.dig()
   def clique(n) when is_count1(n) do
-    g = "clique" |> Dig.new() |> Dig.add(1..n)
+    g = "clique_#{n}" |> Dig.new() |> Dig.add(1..n)
 
     edges =
       for i <- 1..n do

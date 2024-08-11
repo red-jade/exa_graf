@@ -9,8 +9,7 @@ defmodule Exa.Graf.DotReaderTest do
 
   @in_dir ["test", "input", "graf", "dot"]
 
-  @in_files ["petersen"]
-  # ["abcd", "squares", "petersen"]
+  @in_files ["abcd", "squares", "petersen"]
 
   defp in_file(name), do: Exa.File.join(@in_dir, name, @filetype_dot)
 

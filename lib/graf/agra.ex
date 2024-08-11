@@ -50,8 +50,8 @@ defmodule Exa.Graf.Agra do
   # --------------
 
   @doc "Read an agraph from file in Elixir literal format."
-  @spec from_agr_file(E.filename()) :: G.agra() | {:error, any}
-  def from_agr_file(filename) when is_filename(filename) do
+  @spec from_agra_file(E.filename()) :: G.agra() | {:error, any}
+  def from_agra_file(filename) when is_filename(filename) do
     Exa.File.ensure_file!(filename)
     Logger.info("Read  AGR file: #{filename}")
     filename |> Code.eval_file() |> elem(0)
@@ -64,8 +64,8 @@ defmodule Exa.Graf.Agra do
 
   Return the full relative path.
   """
-  @spec to_agr_file(G.agra(), E.filename()) :: E.filename() | {:error, any()}
-  def to_agr_file({:agra, gname, _adjs} = agra, outdir)
+  @spec to_agra_file(G.agra(), E.filename()) :: E.filename() | {:error, any()}
+  def to_agra_file({:agra, gname, _adjs} = agra, outdir)
       when is_filename(outdir) and is_gname(gname) do
     Exa.File.ensure_dir!(outdir)
     path = Exa.File.join(outdir, gname, @filetype_agr)
@@ -190,6 +190,8 @@ defmodule Exa.Graf.Agra do
       outadj |> Mos.touch(dst) |> Mos.add(src, dst)
     }
   end
+
+  defp do_add(adjs, {src, []}), do: do_add(adjs, src)
 
   defp do_add({inadj, outadj}, {src, dsts}) when is_list(dsts) do
     {
