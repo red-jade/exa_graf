@@ -1,0 +1,17 @@
+// comment
+# another comment
+/* multiline
+   comment */
+
+digraph abcd {
+    # another comment
+    a [label="foo,bar"]; 
+    b; c [label="baz"]; d; 
+    
+    // now the edges
+    a -> b -> c  [label="three"];
+    
+    /* two
+       liner */
+    b -> d [color="red"];
+}
