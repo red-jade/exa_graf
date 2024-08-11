@@ -5,7 +5,9 @@ defmodule Exa.Graf.AgraTest do
 
   import Exa.Graf.Agra
 
-  test "vert" do
+  # add ----------
+
+  test "add vert" do
     g = "vert" |> new() |> add(1) |> add(2) |> add(3)
 
     assert g ==
@@ -14,7 +16,7 @@ defmodule Exa.Graf.AgraTest do
                %{1 => MapSet.new([]), 2 => MapSet.new([]), 3 => MapSet.new([])}}}
   end
 
-  test "verts" do
+  test "add verts" do
     g = "verts" |> new() |> add([1, 2, 3])
 
     assert g ==
@@ -23,7 +25,7 @@ defmodule Exa.Graf.AgraTest do
                %{1 => MapSet.new([]), 2 => MapSet.new([]), 3 => MapSet.new([])}}}
   end
 
-  test "range" do
+  test "add range" do
     g = "range" |> new() |> add(1..3)
 
     assert g ==
@@ -32,7 +34,7 @@ defmodule Exa.Graf.AgraTest do
                %{1 => MapSet.new([]), 2 => MapSet.new([]), 3 => MapSet.new([])}}}
   end
 
-  test "edge" do
+  test "add edge" do
     g = "edge" |> new() |> add({1, 2}) |> add({2, 3}) |> add({1, 3})
 
     assert g ==
@@ -41,7 +43,7 @@ defmodule Exa.Graf.AgraTest do
                %{1 => MapSet.new([2, 3]), 2 => MapSet.new([3]), 3 => MapSet.new([])}}}
   end
 
-  test "edges" do
+  test "add edges" do
     g = "edges" |> new() |> add([{1, 2}, {2, 3}, {1, 3}])
 
     assert g ==
@@ -50,7 +52,7 @@ defmodule Exa.Graf.AgraTest do
                %{1 => MapSet.new([2, 3]), 2 => MapSet.new([3]), 3 => MapSet.new([])}}}
   end
 
-  test "adj" do
+  test "add adj" do
     g = "adj" |> new() |> add({1, [2, 3]}) |> add({2, [3]})
 
     assert g ==
@@ -59,12 +61,12 @@ defmodule Exa.Graf.AgraTest do
                %{1 => MapSet.new([2, 3]), 2 => MapSet.new([3]), 3 => MapSet.new([])}}}
   end
 
-  test "self loop" do
+  test "add self loop" do
     g = "self loop" |> new() |> add(1) |> add({1, 1})
     assert g == {:agra, "self_loop", {%{1 => MapSet.new([1])}, %{1 => MapSet.new([1])}}}
   end
 
-  test "repeated vert" do
+  test "add repeated vert" do
     g = "vert" |> new() |> add(1) |> add(1) |> add([3, 3])
 
     assert g ==
@@ -73,12 +75,59 @@ defmodule Exa.Graf.AgraTest do
                %{1 => MapSet.new([]), 3 => MapSet.new([])}}}
   end
 
-  test "repeate edge" do
+  test "add repeated edge" do
     g = "edge" |> new() |> add({1, 2}) |> add({1, 2}) |> add([{1, 3}, {1, 3}])
 
     assert g ==
              {:agra, "edge",
               {%{1 => MapSet.new([]), 2 => MapSet.new([1]), 3 => MapSet.new([1])},
                %{1 => MapSet.new([2, 3]), 2 => MapSet.new([]), 3 => MapSet.new([])}}}
+  end
+
+  # remove ----------
+
+  @tri new("tri", [{1, 2}, {2, 3}, {1, 3}])
+
+  test "valid tri" do
+    assert @tri ==
+             {:agra, "tri",
+              {%{1 => MapSet.new([]), 2 => MapSet.new([1]), 3 => MapSet.new([1, 2])},
+               %{1 => MapSet.new([2, 3]), 2 => MapSet.new([3]), 3 => MapSet.new([])}}}
+  end
+
+  test "del vert" do
+    g = delete(@tri, 1)
+
+    assert g ==
+             {:agra, "tri",
+              {%{2 => MapSet.new([]), 3 => MapSet.new([2])},
+               %{2 => MapSet.new([3]), 3 => MapSet.new([])}}}
+  end
+
+  test "del edge" do
+    g = delete(@tri, {1,3})
+
+    assert g ==
+             {:agra, "tri",
+              {%{1 => MapSet.new([]), 2 => MapSet.new([1]), 3 => MapSet.new([2])},
+               %{1 => MapSet.new([2]), 2 => MapSet.new([3]), 3 => MapSet.new([])}}}
+  end
+
+  test "del adj" do
+    g = delete(@tri, {1,[2,3]})
+
+    assert g ==
+             {:agra, "tri",
+              {%{1 => MapSet.new([]), 2 => MapSet.new([]), 3 => MapSet.new([2])},
+               %{1 => MapSet.new([]), 2 => MapSet.new([3]), 3 => MapSet.new([])}}}
+  end
+
+  test "del list" do
+    g = delete(@tri, [1, {2,3}])
+
+    assert g ==
+             {:agra, "tri",
+              {%{2 => MapSet.new([]), 3 => MapSet.new([])},
+               %{2 => MapSet.new([]), 3 => MapSet.new([])}}}
   end
 end

@@ -168,7 +168,7 @@ defmodule Exa.Graf.Agra do
 
   @spec do_add(G.adjmaps(), G.gelem()) :: G.adjmaps() | {:error, any()}
 
-  defp do_add(_dig, []), do: :ok
+  defp do_add(adjs, []), do: adjs
 
   defp do_add({inadj, outadj}, i) when is_vert(i) do
     {
@@ -217,7 +217,82 @@ defmodule Exa.Graf.Agra do
     {:error, "Unrecognized graph element #{gel}"}
   end
 
-  # TODO - delete
+ @doc """
+  Delete an element of a graph.
+  The element can be:
+  - vertex
+  - vertex range
+  - edge
+  - out adjacency list
+  - lists of the above
+
+  It is not an error to delete a non-existing element.
+
+  The only error condition is:
+  - unrecognized graph element
+  """
+  @spec delete(G.agra(), G.gelem()) :: G.agra() | {:error, any()}
+  def delete({:agra, gname, adjs}, gelem) do
+    case do_del(adjs, gelem) do
+      {:error, _} = err -> err
+      adjs -> {:agra, gname, adjs}
+    end
+  end
+
+  @spec do_del(G.adjmaps(), G.gelem()) :: G.adjmaps() | {:error, any()}
+
+  defp do_del(adjs, []), do: adjs
+
+  defp do_del({inadj, outadj}, i) when is_vert(i) do
+    {
+      inadj |> Map.delete(i) |> Mos.remove_all(i),
+      outadj |> Map.delete(i) |> Mos.remove_all(i)
+    }
+  end
+
+  defp do_del({inadj, outadj}, r) when is_range(r) do
+    {
+      Enum.reduce(r, inadj, fn i, inadj -> 
+        inadj |> Map.delete(i) |> Mos.remove_all(i)
+      end),
+      Enum.reduce(r, outadj, fn i, outadj ->
+        outadj |> Map.delete(i) |> Mos.remove_all(i)
+      end)
+    }
+  end
+
+  defp do_del({inadj, outadj}, {src, dst} = e) when is_edge(e) do
+    {
+      Mos.remove(inadj, dst, src),
+      Mos.remove(outadj, src, dst)
+    }
+  end
+
+  defp do_del(adjs, {src, []}), do: do_del(adjs, src)
+
+  defp do_del({inadj, outadj}, {src, dsts}) when is_list(dsts) do
+    {
+      Enum.reduce(dsts, inadj, fn dst, inadj ->
+        Mos.remove(inadj, dst, src)
+      end),
+      Enum.reduce(dsts, Mos.adds(outadj, src, dsts), fn dst, outadj ->
+        Mos.remove(outadj, src, dst)
+      end)
+    }
+  end
+
+  defp do_del(adjs, glist) when is_list(glist) do
+    Enum.reduce_while(glist, adjs, fn gel, adjs ->
+      case do_del(adjs, gel) do
+        {:error, _} = err -> {:halt, err}
+        new_adjs -> {:cont, new_adjs}
+      end
+    end)
+  end
+
+  defp do_del(_adjs, gel) do
+    {:error, "Unrecognized graph element #{gel}"}
+  end
 
   # -------
   # queries
