@@ -19,84 +19,38 @@ defmodule Exa.Graf.Dig do
   use Exa.Graf.Constants
 
   import Exa.Types
-  alias Exa.Types, as: E
 
   import Exa.Graf.Types
   alias Exa.Graf.Types, as: G
-  alias Exa.Graf.DotTypes, as: D
 
-  alias Exa.Graf.Agra
-  alias Exa.Graf.DotReader
-  alias Exa.Graf.DotWriter, as: DOT
+  # ---------
+  # behaviour
+  # ---------
 
-  alias Exa.Std.HistoTypes, as: H
-  alias Exa.Std.Histo1D
-  alias Exa.Std.Histo2D
+  @behaviour Exa.Graf.API
 
-  # -----
-  # types
-  # -----
-
-  @typedoc """
-  Cyclicity property for the whole graph:
-  The boolean argument is for cyclicity:
-  - `:cyclic` general directed graph, allow cycles and self-loops
-  - `:acyclic` Directed Acyclic Graph (DAG), no cycles or self-loops
-  """
-  @type cyclicity() :: :cyclic | :acyclic
-
-  # -------------------
-  # graph create/delete
-  # -------------------
-
-  @doc """
-  Create a new graph containing a possibly empty list of graph elements.
-
-  Edge creation forces creation of missing vertices.
-  """
-  @spec new(G.gname(), [G.gelem()], cyclicity()) :: G.dig()
-  def new(name, glist \\ [], cyc \\ :cyclic)
-
-  def new(name, [], cyc) when is_gname(name) and cyc in [:cyclic, :acyclic] do
-    # remove punctuation, convert space to '_', truncate for file system
-    {:dig, Exa.String.sanitize!(name, 200), :digraph.new([cyc])}
+  @impl true
+  def new(:dig, gname, cyc \\ :cyclic) when is_gname(gname) and is_cyc(cyc) do
+    {:dig, gname, :digraph.new([cyc])}
   end
 
-  def new(name, glist, cyc) when is_list(glist) do
-    name |> new([], cyc) |> add(glist)
-  end
-
-  @doc "Delete the graph."
-  @spec delete(G.dig()) :: true
+  @impl true
   def delete({:dig, _, dig}), do: :digraph.delete(dig)
 
-  @doc "Rename a graph."
-  @spec rename(G.dig(), G.gname()) :: G.dig()
-  def rename({:dig, _, data}, new_name), do: {:dig, new_name, data}
-
-  # -------------
-  # graph queries
-  # -------------
-
-  @doc "The number of vertices in the graph."
-  @spec nvert(G.dig()) :: E.count()
+  @impl true
   def nvert({:dig, _, dig}), do: :digraph.no_vertices(dig)
 
-  @doc "The number of edges in the graph."
-  @spec nedge(G.dig()) :: E.count()
+  @impl true
   def nedge({:dig, _, dig}), do: :digraph.no_edges(dig)
 
-  @doc "Get the digraph vertices as a list of ids."
-  @spec verts(G.dig()) :: G.verts()
+  @impl true
   def verts({:dig, _, dig}), do: dig |> :digraph.vertices() |> vids()
 
-  @doc "Get the digraph edges as a list of directed edges."
-  @spec edges(G.dig()) :: G.edges()
+  @impl true
   def edges({:dig, _, dig}), do: dig |> :digraph.edges() |> eids(dig)
 
-  @doc "Test if the vertex exists in the graph."
-  @spec vert?(G.dig(), G.vert()) :: bool()
-  def vert?({:dig, _, dig}, i) when is_vert(i), do: do_vert?(dig, i)
+  @impl true
+  def vert?({:dig, _, dig}, i), do: do_vert?(dig, i)
 
   @spec do_vert?(:digraph.graph(), G.vert()) :: bool()
   defp do_vert?(dig, i) do
@@ -107,24 +61,15 @@ defmodule Exa.Graf.Dig do
     end
   end
 
-  @doc "Test if the edge exists in the graph."
-  @spec edge?(G.dig(), G.edge()) :: bool()
-  def edge?({:dig, _, dig}, e) when is_edge(e), do: do_edge?(dig, e)
+  @impl true
+  def edge?({:dig, _, dig}, e), do: do_edge?(dig, e)
 
   @spec do_edge?(:digraph.graph(), G.edge()) :: bool()
   defp do_edge?(dig, {i, j}) do
     vmake(j) in :digraph.out_neighbours(dig, vmake(i))
   end
 
-  @doc """
-  Get the degree for a vertex, given an adjacency relationship.
-
-  Returns an error if the vertex does not exist.
-  """
-  @spec degree(G.dig(), G.vert(), G.adjacency()) ::
-          {G.vert(), in_or_out :: G.degree()}
-          | {G.vert(), n_in :: G.degree(), n_out :: G.degree()}
-          | {:error, any()}
+  @impl true
 
   def degree({:dig, _, dig}, i, :in) when is_vert(i) do
     if do_vert?(dig, i) do
@@ -151,15 +96,7 @@ defmodule Exa.Graf.Dig do
     end
   end
 
-  @doc """
-  Get the neighbors of a vertex, given an adjacency relationship.
-
-  Returns an error if the vertex does not exist.
-  """
-  @spec neighborhood(G.dig(), G.vert(), G.adjacency()) ::
-          {G.vert(), in_or_out :: G.verts()}
-          | {G.vert(), v_in :: G.verts(), v_out :: G.verts()}
-          | {:error, any()}
+  @impl true
 
   def neighborhood({:dig, _, dig}, i, :in) when is_vert(i) do
     if do_vert?(dig, i) do
@@ -186,34 +123,7 @@ defmodule Exa.Graf.Dig do
     end
   end
 
-  # -------------------
-  # vertex/edge add/del
-  # -------------------
-
-  @doc """
-  Add a graph element to the graph.
-
-  When an edge is added to the graph, 
-  create any vertices that do not already exist.
-
-  If the graph was created _acyclic_ 
-  then self-loops and cyclic paths will force an error.
-
-  If the graph is _cyclic_ then self-loops are allowed.
-
-  Repeated edges are not allowed.
-  There can be at most one edge with the same ordered pair of endpoints.
-
-  It is not an error to add an existing element.
-  Adding repeated vertices or edges is idempotent.
-  In particular, there will only be at most one edge 
-  between any pair of vertices.
-
-  The only error conditions are:
-  - unrecognized graph element
-  - adding self-loop or cyclic path to an acyclic graph
-  """
-  @spec add(G.dig(), G.gelem()) :: G.dig() | {:error, any()}
+  @impl true
   def add({:dig, _, dig} = g, gelem) do
     case do_add(dig, gelem) do
       {:error, _} = err -> err
@@ -270,14 +180,7 @@ defmodule Exa.Graf.Dig do
     {:error, "Unrecognized graph element #{gel}"}
   end
 
-  @doc """
-  Delete an element from the graph.
-
-  It is not an error to delete a non-existent element.
-
-  The only error condition is an unrecognized graph element.
-  """
-  @spec delete(G.dig(), G.gelem()) :: G.dig() | {:error, any()}
+  @impl true
   def delete({:dig, _, dig} = g, gelem) do
     case do_del(dig, gelem) do
       {:error, _} = err -> err
@@ -297,11 +200,14 @@ defmodule Exa.Graf.Dig do
     iv = vmake(i)
     jv = vmake(j)
 
-    Enum.reduce_while(:digraph.out_edges(dig,iv), :ok, fn edig, :ok ->
+    Enum.reduce_while(:digraph.out_edges(dig, iv), :ok, fn edig, :ok ->
       case :digraph.edge(dig, edig) do
-        {_eid, ^iv, ^jv, _} -> :digraph.del_edge(dig, edig)
-             {:halt, :ok}
-        _ -> {:cont, :ok}
+        {_eid, ^iv, ^jv, _} ->
+          :digraph.del_edge(dig, edig)
+          {:halt, :ok}
+
+        _ ->
+          {:cont, :ok}
       end
     end)
   end
@@ -326,183 +232,6 @@ defmodule Exa.Graf.Dig do
 
   defp do_del(_dig, gel) do
     {:error, "Unrecognized graph element #{gel}"}
-  end
-
-  # -----------
-  # conversions
-  # -----------
-
-  @doc """
-  Write a digraph to file in GraphViz DOT format.
-
-  The graph `gname` is used as the title of the DOT graph object,
-  as a key for global properties in the graph attribute map,
-  and as the basename for the output file.
-
-  Return the DOT text as `IO.chardata` and the full output filename.
-
-  Use `Exa.Dot.Render.render_dot/3` 
-  to convert the DOT file to PNG or SVG.
-  """
-  @spec to_dot_file(G.dig(), E.filename(), D.graph_attrs()) ::
-          {E.filename(), IO.chardata()}
-  def to_dot_file({:dig, gname, _} = g, dotdir, gattrs \\ %{})
-      when is_filename(dotdir) and is_string(gname) do
-    Exa.File.ensure_dir!(dotdir)
-    filename = Exa.File.join(dotdir, gname, [@filetype_dot])
-
-    dot =
-      DOT.new_dot(gname)
-      |> DOT.globals(gname, gattrs)
-      |> DOT.nodes(verts(g), gattrs)
-      |> DOT.edges(edges(g), gattrs)
-      |> DOT.end_dot()
-      |> DOT.to_file(filename)
-
-    {filename, dot}
-  end
-
-  @doc """
-  Read DOT file into digraph.
-
-  The graph name will be the internal DOT digraph name, 
-  not the file basename.
-  """
-  @spec from_dot_file(E.filename()) :: {G.dig(), D.graph_attrs()}
-  def from_dot_file(filename) when is_filename(filename) do
-    # use DOT filename or internal graph name?
-    # must be the graph name to correlate with gattrs
-    # maybe issue warning when they are different
-    # {_dir, fname, _types} = Exa.File.split(filename)
-    {agra, gattrs} = DotReader.from_dot_file(filename)
-    {from_agra(agra), gattrs}
-  end
-
-  @doc """
-  Convert an agraph to a digraph.
-  """
-  @spec from_agra(G.agra()) :: G.dig()
-  def from_agra({:agra, gname, {_inadj, outadj}}) do
-    {:dig, ^gname, dig} = g = new(gname)
-    Enum.each(outadj, fn {src, dset} -> 
-      do_add(dig, {src, MapSet.to_list(dset)})
-    end)
-    g
-  end
-
-  @doc """
-  Convert a digraph to an agraph.
-  """
-  @spec to_agra(G.dig()) :: G.agra()
-  def to_agra({:dig, gname, _dig}=g) do
-    Agra.new(gname) |> Agra.add(edges(g)) |> Agra.add(verts(g))
-  end
-
-  # ----------
-  # histograms
-  # ----------
-
-  @doc """
-  Create a 1D histogram of the vertex degrees.
-
-  The kind of degree is determined by the adjacency argument:
-  - `:in` in degree
-  - `:out` out degree
-  - `:inout` total degree (in+out)
-  """
-  @spec degree_histo1d(G.dig(), G.adjacency()) :: H.histo1d()
-
-  def degree_histo1d({:dig, _, dig} = g, :in) do
-    Enum.reduce(verts(g), Histo1D.new(), fn i, h ->
-      Histo1D.inc(h, :digraph.in_degree(dig, vmake(i)))
-    end)
-  end
-
-  def degree_histo1d({:dig, _, dig} = g, :out) do
-    Enum.reduce(verts(g), Histo1D.new(), fn i, h ->
-      Histo1D.inc(h, :digraph.out_degree(dig, vmake(i)))
-    end)
-  end
-
-  def degree_histo1d({:dig, _, dig} = g, :inout) do
-    Enum.reduce(verts(g), Histo1D.new(), fn i, h ->
-      iv = vmake(i)
-      deg = :digraph.in_degree(dig, iv) + :digraph.out_degree(dig, iv)
-      Histo1D.inc(h, deg)
-    end)
-  end
-
-  @doc """
-  Create a 2D histogram of the in and out vertex degrees.
-  """
-  @spec degree_histo2d(G.dig()) :: H.histo2d()
-  def degree_histo2d({:dig, _, dig} = g) do
-    Enum.reduce(verts(g), Histo2D.new(), fn i, h ->
-      iv = vmake(i)
-      indeg = :digraph.in_degree(dig, iv)
-      outdeg = :digraph.out_degree(dig, iv)
-      Histo2D.inc(h, {indeg, outdeg})
-    end)
-  end
-
-  @doc """
-  Create a hash of the graph.
-
-  The hash should reasonably discriminate graphs
-  by their topology with a simple and relatively fast algorithm.
-
-  The hash can be used to reject a graph isomorphism test.
-  Graphs with different hashes cannot be isomorphic.
-  Graphs with the same hash may be isomorphic, or not,
-  they are _undecided._
-
-  The current approach is to generate the 2D histogram,
-  serialize to a list, sort, convert term to binary,
-  then hash using SHA-256.
-
-  The algorithm is not guaranteed to be stable over time
-  or between different Erlang runtime instances.
-  The hash should not be persisted.
-  """
-  @spec hash(G.dig()) :: G.ghash()
-  def hash(g) when is_dig(g) do
-    bin = g |> degree_histo2d() |> Enum.sort() |> :erlang.term_to_binary([:local])
-    :crypto.hash(:sha256, bin)
-  end
-
-  @doc "Test two graphs for exact equality."
-  @spec equal?(G.dig(), G.dig()) :: bool()
-  def equal?(g1, g2) when is_dig(g1) and is_dig(g2) do
-    case isomorphic?(g1, g2) do
-      false ->
-        false
-
-      :undecided ->
-        g1 |> verts() |> Enum.sort() == g2 |> verts() |> Enum.sort() and
-          g1 |> edges() |> Enum.sort() == g2 |> edges() |> Enum.sort()
-    end
-  end
-
-  @doc """
-  Test two graphs for isomorphism.
-
-  The result is either `true`, `false` or `:undecided`.
-
-  The test compares number of vertices, then number of edges,
-  then hashes of the graphs 
-  (currently based on the sorted 2D histogram of vertex degrees).
-
-  Does not do a full equality check.
-  """
-  @spec isomorphic?(G.dig(), G.dig()) :: bool() | :undecided
-  def isomorphic?(g1, g2) when is_dig(g1) and is_dig(g2) do
-    if nvert(g1) == nvert(g2) and nedge(g1) == nedge(g2) and hash(g1) == hash(g2) do
-      # don't tets for equality here
-      # keep equality check separate
-      :undecided
-    else
-      false
-    end
   end
 
   # -----------------

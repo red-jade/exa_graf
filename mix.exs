@@ -12,7 +12,7 @@ defmodule Exa.Graf.MixProject do
       deps: deps(:main) ++ deps(:support),
       docs: docs(),
       test_pattern: "*_test.exs",
-      dialyzer: [flags: [:no_improper_lists]]
+      dialyzer: [flags: [:no_improper_lists, :no_behaviours]]
     ]
   end
 

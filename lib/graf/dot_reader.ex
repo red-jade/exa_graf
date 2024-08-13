@@ -10,10 +10,11 @@ defmodule Exa.Graf.DotReader do
 
   use Exa.Graf.Constants
 
+  import Exa.Graf.Types
   alias Exa.Graf.Types, as: G
   alias Exa.Graf.DotTypes, as: D
 
-  alias Exa.Graf.Agra
+  alias Exa.Graf.Graf
 
   # -----------
   # local types
@@ -25,8 +26,9 @@ defmodule Exa.Graf.DotReader do
   @doc """
   Read a DOT file.
 
-  The result will be an agraph using the 
+  The result will be a graph using the 
   internal DOT digraph name as the graph name. 
+  The type of the output is determined by the `tag` argument.
 
   Note that the digraph name is used to key global attributes,
   so if the client renames the graph, the attributes must be rekeyed
@@ -35,21 +37,21 @@ defmodule Exa.Graf.DotReader do
   Comment lines beginning with `'//'` or `'#'` are ignored.
   """
   # dialyzer does not understand that Exa.File.from... can return error?
-  @dialyzer {:nowarn_function, from_dot_file: 1}
-  @spec from_dot_file(E.filename()) :: {G.agra(), D.graph_attrs()} | {:error, any()}
-  def from_dot_file(filename) when is_filename(filename) do
+  @dialyzer {:nowarn_function, from_dot_file: 2}
+  @spec from_dot_file(G.gtype(), E.filename()) :: {G.graph(), D.graph_attrs()} | {:error, any()}
+  def from_dot_file(tag \\ :agra, filename) when is_gtype(tag) and is_filename(filename) do
     case Exa.File.from_file_text(filename, comments: ["//", "#"]) do
       text when is_string(text) ->
         {gname, gdata, als, gattrs} = text |> to_charlist() |> lex() |> parse()
 
-        # add the alias into the attributes
+        # add the node aliases into the attributes
         new_gattrs =
           Enum.reduce(als, gattrs, fn {str, id}, gattrs ->
             new_attrs = gattrs |> Map.get(id, []) |> Keyword.put(@alias, str)
             Map.put(gattrs, id, new_attrs)
           end)
-       
-        {Agra.new(gname, gdata), new_gattrs}
+
+        {Graf.build(tag, gname, gdata), new_gattrs}
 
       {:error, _} = err ->
         err
@@ -95,7 +97,8 @@ defmodule Exa.Graf.DotReader do
     parse(toks, [], {1, %{}, [to_string(gname)], %{}})
   end
 
-  @spec parse([tok()], gdata(), context()) :: {gdata(), D.aliases(), D.graph_attrs()}
+  @spec parse([tok()], gdata(), context()) :: 
+     {G.gname(), gdata(), D.aliases(), D.graph_attrs()}
 
   # node declaration
   defp parse([id, :semi_colon | toks], g, ctx) when is_list(id) do

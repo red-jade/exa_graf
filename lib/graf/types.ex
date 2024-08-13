@@ -3,7 +3,7 @@ defmodule Exa.Graf.Types do
 
   import Exa.Types
   alias Exa.Types, as: E
-  
+
   alias Exa.Std.Mos, as: M
 
   # agra format ----------
@@ -59,7 +59,10 @@ defmodule Exa.Graf.Types do
   - out adjacency list 
   - list of all of the above
   """
-  @type gelem() :: vert() | vseq() | edge() | adj() | [gelem()]
+  @type gelem() :: vert() | vseq() | edge() | adj() | glist()
+
+  @typedoc "List of graph elements."
+  @type glist() :: [gelem()]
 
   @typedoc "Graphs have a string name."
   @type gname() :: String.t()
@@ -101,7 +104,21 @@ defmodule Exa.Graf.Types do
   """
   @type dig() :: {:dig, gname(), :digraph.graph()}
 
-  defguard is_dig(g) when is_tag_tuple(g, :dig)
+  defguard is_dig(g) when is_tag_tuple(g, 3, :dig)
+
+  @typedoc "The set of tags for graph tuple types."
+  @type gtype() :: :agra | :dig
+
+  defguard is_gtype(t) when t in [:agra, :dig]
+
+  @typedoc """
+  A supertype for all graph types.
+
+  A graphs must be a tagged 3-tuple, with name and specific data.
+  """
+  @type graph() :: agra() | dig()
+
+  defguard is_graph(g) when is_fix_tuple(g, 3) and is_gtype(elem(g, 0))
 
   # counts, neighborhoods, adjacency and degree ----------
 
@@ -122,6 +139,15 @@ defmodule Exa.Graf.Types do
   - `inout` combined incident edges and all adjacent neighbors
   """
   @type adjacency() :: :in | :out | :inout
+
+  @typedoc """
+  Cyclicity property for the whole graph:
+  - `:cyclic` general directed graph, allow cycles and self-loops
+  - `:acyclic` _Directed Acyclic Graph_ (DAG), no cycles or self-loops
+  """
+  @type cyclicity() :: :cyclic | :acyclic
+
+  defguard is_cyc(cyc) when cyc in [:cyclic, :acyclic]
 
   # path ----------
 

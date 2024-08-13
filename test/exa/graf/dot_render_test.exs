@@ -7,7 +7,7 @@ defmodule Exa.Graf.DotRenderTest do
   @in_dir ["test", "input", "graf", "dot"]
   @in_files ["abcd", "squares", "test123", "small", "petersen"]
 
-  @out_dir Path.join(["test", "output", "graf", "dot"]) 
+  @out_dir Path.join(["test", "output", "graf", "dot"])
 
   defp in_file(name), do: Exa.File.join(@in_dir, name, @filetype_dot)
 
