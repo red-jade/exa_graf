@@ -42,7 +42,7 @@ defmodule Exa.Graf.DotReader do
   def from_dot_file(tag \\ :agra, filename) when is_gtype(tag) and is_filename(filename) do
     case Exa.File.from_file_text(filename, comments: ["//", "#"]) do
       text when is_string(text) ->
-        {gname, gdata, als, gattrs} = text |> to_charlist() |> lex() |> parse()
+        {gname, gdata, als, gattrs} = text |> lex([]) |> parse()
 
         # add the node aliases into the attributes
         new_gattrs =
@@ -63,7 +63,7 @@ defmodule Exa.Graf.DotReader do
   # ------
 
   @typep tok() ::
-           charlist()
+           String.t()
            | :digraph
            | :subgraph
            | :open_brace
@@ -94,21 +94,21 @@ defmodule Exa.Graf.DotReader do
   @spec parse([tok()]) :: {G.gname(), gdata(), D.aliases(), D.graph_attrs()}
   defp parse([:digraph, gname, :open_brace | toks]) do
     # digraph name will be the last entry in the stack
-    parse(toks, [], {1, %{}, [to_string(gname)], %{}})
+    parse(toks, [], {1, %{}, [gname], %{}})
   end
 
   @spec parse([tok()], gdata(), context()) :: 
      {G.gname(), gdata(), D.aliases(), D.graph_attrs()}
 
   # node declaration
-  defp parse([id, :semi_colon | toks], g, ctx) when is_list(id) do
+  defp parse([id, :semi_colon | toks], g, ctx) when is_string(id) do
     {i, i_ctx} = id(id, ctx)
     parse(toks, [i | g], i_ctx)
   end
 
   # node declaration with attributes
   # TODO - need to add node to subgraph
-  defp parse([id, :open_square | toks], g, ctx) when is_list(id) do
+  defp parse([id, :open_square | toks], g, ctx) when is_string(id) do
     {i, {n, als, gstack, gattrs}} = id(id, ctx)
     {attrs, [:semi_colon | rest]} = attrs(toks)
     new_ctx = {n, als, gstack, Map.put(gattrs, i, attrs)}
@@ -116,14 +116,14 @@ defmodule Exa.Graf.DotReader do
   end
 
   # single edge declaration, or last of chain, no attributes
-  defp parse([a, :arrow, b, :semi_colon | toks], g, ctx) when is_list(a) and is_list(b) do
+  defp parse([a, :arrow, b, :semi_colon | toks], g, ctx) when is_string(a) and is_string(b) do
     {i, a_ctx} = id(a, ctx)
     {j, ab_ctx} = id(b, a_ctx)
     parse(toks, [{i, j} | g], ab_ctx)
   end
 
   # single edge declaration, or last of chain, with attributes
-  defp parse([a, :arrow, b, :open_square | toks], g, ctx) when is_list(a) and is_list(b) do
+  defp parse([a, :arrow, b, :open_square | toks], g, ctx) when is_string(a) and is_string(b) do
     {i, a_ctx} = id(a, ctx)
     {j, {n, als, gstack, gattrs}} = id(b, a_ctx)
     {attrs, [:semi_colon | rest]} = attrs(toks)
@@ -132,7 +132,7 @@ defmodule Exa.Graf.DotReader do
   end
 
   # chained edge definitions ... to be continued
-  defp parse([a, :arrow, b | toks], g, ctx) when is_list(a) and is_list(b) do
+  defp parse([a, :arrow, b | toks], g, ctx) when is_string(a) and is_string(b) do
     {i, a_ctx} = id(a, ctx)
     {j, ab_ctx} = id(b, a_ctx)
     # note b is maintained at the head of the toks
@@ -194,11 +194,10 @@ defmodule Exa.Graf.DotReader do
   defp attrs(toks, attrs \\ [])
 
   defp attrs([k, :equals, v | toks], attrs)
-       when is_list(k) and is_list(v) and is_keyword(attrs) do
-    key = k |> to_string() |> String.to_atom()
+       when is_string(k) and is_string(v) and is_keyword(attrs) do
+    key = String.to_atom(k)
     # TODO - parse value v
-    val = v |> to_string()
-    attrs(toks, [{key, val} | attrs])
+    attrs(toks, [{key, v} | attrs])
   end
 
   # this comma is attribute separator, not vector value separator
@@ -206,12 +205,12 @@ defmodule Exa.Graf.DotReader do
   defp attrs([:close_square | toks], attrs), do: {attrs, toks}
 
   # get identifier from raw integer or name index
-  @spec id(charlist(), context()) :: {G.vert(), context()}
+  @spec id(String.t(), context()) :: {G.vert(), context()}
 
-  defp id([c | _] = cs, {n, als, gstack, gattrs}) when is_digit(c) do
+  defp id(<<c, _::binary>> = s, {n, als, gstack, gattrs}) when is_digit(c) do
     # assume identifier starting with digit is an integer
     # parse will fail for bad input, e.g. 12abc
-    i = cs |> to_string() |> Integer.parse() |> elem(0)
+    i = s |> Integer.parse() |> elem(0)
 
     case Enum.find(als, &(elem(&1, 1) == i)) do
       nil ->
@@ -231,9 +230,7 @@ defmodule Exa.Graf.DotReader do
     {i, {max(n, i + 1), als, gstack, gattrs}}
   end
 
-  defp id([c | _] = cs, {n, als, gstack, gattrs} = ctx) when is_namestart(c) do
-    name = to_string(cs)
-
+  defp id(<<c, _::binary>>=name, {n, als, gstack, gattrs} = ctx) when is_namestart(c) do
     case Map.fetch(als, name) do
       {:ok, id} -> {id, ctx}
       :error -> {n, {n + 1, Map.put(als, name, n), gstack, gattrs}}
@@ -244,63 +241,60 @@ defmodule Exa.Graf.DotReader do
   # lexer 
   # -----
 
-  # TODO - convert to binary lexer
+  @spec lex(String.t(), [tok()]) :: [tok()]
 
-  @spec lex(charlist()) :: [tok()]
-  defp lex(toks), do: lex(toks, [])
-
-  @spec lex(charlist(), [tok()]) :: [tok()]
-
-  defp lex([ws | cs], toks) when is_ws(ws), do: lex(cs, toks)
-  defp lex([?; | cs], toks), do: lex(cs, [:semi_colon | toks])
-  defp lex([?[ | cs], toks), do: lex(cs, [:open_square | toks])
-  defp lex([?] | cs], toks), do: lex(cs, [:close_square | toks])
-  defp lex([?= | cs], toks), do: lex(cs, [:equals | toks])
-  defp lex([?, | cs], toks), do: lex(cs, [:comma | toks])
-  defp lex([?-, ?> | cs], toks), do: lex(cs, [:arrow | toks])
-  defp lex([?/, ?* | cs], toks), do: lex(comment(cs), toks)
+  defp lex(<<ws , rest::binary>>, toks) when is_ws(ws), do: lex(rest, toks)
+  defp lex(<<?; , rest::binary>>, toks), do: lex(rest, [:semi_colon | toks])
+  defp lex(<<?[ , rest::binary>>, toks), do: lex(rest, [:open_square | toks])
+  defp lex(<<?] , rest::binary>>, toks), do: lex(rest, [:close_square | toks])
+  defp lex(<<?= , rest::binary>>, toks), do: lex(rest, [:equals | toks])
+  defp lex(<<?, , rest::binary>>, toks), do: lex(rest, [:comma | toks])
+  defp lex(<<?-, ?> , rest::binary>>, toks), do: lex(rest, [:arrow | toks])
+  defp lex(<<?/, ?* , rest::binary>>, toks), do: lex(comment(rest), toks)
 
   # opening brace for start of graph declaration, nested cluster and anon rank
-  defp lex([?{ | cs], toks), do: lex(cs, [:open_brace | toks])
+  defp lex(<<?{ , rest::binary>>, toks), do: lex(rest, [:open_brace | toks])
+
   # closing brace for end of graph declaration
-  defp lex([?} | cs], toks), do: lex(cs, [:close_brace | toks])
+  defp lex(<<?} , rest::binary>>, toks), do: lex(rest, [:close_brace | toks])
 
   # fixed keywords
-  defp lex([?d, ?i, ?g, ?r, ?a, ?p, ?h | cs], toks), do: lex(cs, [:digraph | toks])
-  defp lex([?s, ?u, ?b, ?g, ?r, ?a, ?p, ?h | cs], toks), do: lex(cs, [:subgraph | toks])
-  defp lex([?n, ?o, ?d, ?e | cs], toks), do: lex(cs, [:node | toks])
-  defp lex([?e, ?d, ?g, ?e | cs], toks), do: lex(cs, [:edge | toks])
+  defp lex("digraph" <> rest, toks), do: lex(rest, [:digraph | toks])
+  defp lex("subgraph" <> rest, toks), do: lex(rest, [:subgraph | toks])
+  defp lex("node" <> rest, toks), do: lex(rest, [:node | toks])
+  defp lex("edge" <> rest, toks), do: lex(rest, [:edge | toks])
 
   # quoted attr value - or quoted node name?
-  defp lex([?" | cs], toks) do
-    {str, rest} = quoted(cs, [])
+  defp lex(<<?" , rest::binary>>, toks) do
+    {str, rest} = quoted(rest, <<>>)
     lex(rest, [str | toks])
   end
 
   # node name, attr key, or unquoted attr value
   # does allow floating point, hex color, 
   # doesn't handle unquoted comma-separated rgb colors or sizes
-  defp lex([c | cs], toks) when is_alphanum(c) or c == ?# do
-    {str, t} = name(cs, [c])
+  defp lex(<<c, rest::binary>>, toks) when is_alphanum(c) or c == ?# do
+    {str, t} = name(rest, <<c>>)
     lex(t, [str | toks])
   end
 
-  defp lex([], toks), do: Enum.reverse(toks)
+  defp lex(<<>>, toks), do: Enum.reverse(toks)
 
-  defp lex(cs, _toks) do
-    msg = "Unrecognized DOT data: #{cs}"
+  defp lex(s, _toks) do
+    msg = "Unrecognized DOT data: #{s}"
     Logger.error(msg)
     raise ArgumentError, message: msg
   end
 
-  # consume a sequence and return a charlist token
+  # consume a sequence and return a token
+  # allow UTF8 in names, quotes and comments
 
-  defp name([c | cs], name) when is_namechar(c) or c == ?., do: name(cs, [c | name])
-  defp name(cs, name), do: {Enum.reverse(name), cs}
+  defp name(<<c, rest::binary>>, name) when is_namechar(c) or c == ?., do: name(rest, <<name::binary, c>>)
+  defp name(rest, name), do: {name, rest}
 
-  defp quoted([?" | cs], name), do: {name |> Enum.reverse(), cs}
-  defp quoted([c | cs], name), do: quoted(cs, [c | name])
+  defp quoted(<<?", rest::binary>>, name), do: {name, rest}
+  defp quoted(<<c::utf8 , rest::binary>>, name), do: quoted(rest, <<name::binary, c::utf8>>)
 
-  defp comment([?*, ?/ | cs]), do: cs
-  defp comment([_c | cs]), do: comment(cs)
+  defp comment(<<?*, ?/ , rest::binary>>), do: rest
+  defp comment(<<_::utf8, rest::binary>>), do: comment(rest)
 end
