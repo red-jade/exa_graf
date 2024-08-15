@@ -150,13 +150,25 @@ defmodule Exa.Graf.Types do
   - `:isolated` no incident edges
   - `:source` only outgoing edges
   - `:sink` only incoming edges
-  - `:self` isolated with only a self loop
   - `:linear` exactly 1 incoming and 1 outgoing edge, but not a self-loop
+  - `:self_isolated` isolated with only a self-loop
+  - `:self_source` only outgoing edges and a self-loop
+  - `:self_sink` only incoming edges and a self-loop
+  - `:self_linear` exactly 1 incoming and 1 outgoing edge, and a self-loop
   - `:complex` both incoming and outgoing edges, 
-     with one direction having at least 2 edges, 
-     including contribution of self-loops
+     with at least 2 incident edges in one direction,
+     in addition to any contribution from a self-loop
   """
-  @type vert_class() :: :isolated | :source | :sink | :self | :linear | :complex
+  @type vert_class() ::
+          :isolated
+          | :source
+          | :sink
+          | :linear
+          | :self_isolated
+          | :self_source
+          | :self_sink
+          | :self_linear
+          | :complex
 
   @typedoc """
   Cyclicity property for the whole graph:

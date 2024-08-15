@@ -141,14 +141,14 @@ defmodule Exa.Graf.GrafTest do
   test "tree" do
     Enum.each([:agra, :dig], fn tag ->
       # the 5,3 edge is reversed, so not a strong tree
-      g = build(tag, "tree", [{1, 2}, {1, 3}, {3, 4}, {5,3}])
+      g = build(tag, "tree", [{1, 2}, {1, 3}, {3, 4}, {5, 3}])
 
       assert MapSet.new([1, 2, 3, 4]) == reachable(g, 1)
       assert MapSet.new([3, 4, 5]) == reachable(g, 5)
       assert connected?(g)
       assert tree?(g)
 
-      g = delete(g,{1,2})
+      g = delete(g, {1, 2})
       assert not tree?(g)
     end)
   end

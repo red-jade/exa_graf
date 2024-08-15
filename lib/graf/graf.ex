@@ -178,11 +178,14 @@ defmodule Exa.Graf.Graf do
   - `:isolated` no incident edges
   - `:source` only outgoing edges
   - `:sink` only incoming edges
-  - `:self` isolated with only a self loop
   - `:linear` exactly 1 incoming and 1 outgoing edge, but not a self-loop
+  - `:self_isolated` isolated with only a self-loop
+  - `:self_source` only outgoing edges and a self-loop
+  - `:self_sink` only incoming edges and a self-loop
+  - `:self_linear` exactly 1 incoming and 1 outgoing edge, and a self-loop
   - `:complex` both incoming and outgoing edges, 
-     with one direction having at least 2 edges, 
-     including contribution of self-loops
+     with at least 2 incident edges in one direction,
+     in addition to any contribution from a self-loop
 
   Returns an error if the vertex does not exist.
   """
@@ -194,6 +197,9 @@ defmodule Exa.Graf.Graf do
       {_i, _, 0} -> :sink
       {_i, 0, _} -> :source
       {_i, 1, 1} -> if edge?(g, {i, i}), do: :self, else: :linear
+      {_i, _, 1} -> if edge?(g, {i, i}), do: :self_sink, else: :complex
+      {_i, 1, _} -> if edge?(g, {i, i}), do: :self_source, else: :complex
+      {_i, 2, 2} -> if edge?(g, {i, i}), do: :self_linear, else: :complex
       _ -> :complex
     end
   end
@@ -261,8 +267,8 @@ defmodule Exa.Graf.Graf do
   end
 
   def join(g1, g2, :disjoint) when is_graph(g1) and is_graph(g2) do
-    {min1, max1} = m1 = verts_minmax(g1)
-    {min2, max2} = m2 = verts_minmax(g2)
+    {min1, max1} = verts_minmax(g1)
+    {min2, max2} = verts_minmax(g2)
 
     if max1 < min2 or max2 < min1 do
       join(g1, g2, :merge)
