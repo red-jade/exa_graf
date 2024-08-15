@@ -19,6 +19,9 @@ defmodule Exa.Graf.Types do
   @typedoc "A contiguous sequence of vertex ids."
   @type vseq() :: Range.t()
 
+  @typedoc "A set of vertices."
+  @type vset() :: MapSet.t(vert())
+
   @typedoc """
   A directed edge is an ordered pair of vertices.
   The vertices should be previously defined.
@@ -178,6 +181,19 @@ defmodule Exa.Graf.Types do
   @type distance() :: non_neg_integer()
 
   defguard is_distance(d) when is_nonneg_int(d)
+
+  # components ----------
+
+  @typedoc """
+  A component is a weakly/strongly connected set of vertices.
+
+  We choose the minimum vertex id in the component 
+  as the component id.
+
+  A component index is a map from the component id
+  to the list of vertices for the component.
+  """
+  @type components() :: %{vert() => verts()}
 
   # hash ----------
 

@@ -101,4 +101,30 @@ defmodule Exa.Graf.API do
               {G.vert(), in_or_out :: G.verts()}
               | {G.vert(), v_in :: G.verts(), v_out :: G.verts()}
               | {:error, any()}
+
+  @doc """
+  Get the weakly connected components of the graph
+  (undirected connectivity).
+
+  Returns an index of components:
+  a map of component id to set of vertices in the component.
+
+  We choose the component id to be the minimum vertex id in the component.
+
+  The union of all components is the total set of vertices.
+  Every vertex is a member of exactly one component.
+
+  Isolated vertices appear as singleton sets,
+  indexed by the vertex id.
+  """
+  @callback components(G.graph()) :: G.components()
+
+  @doc """
+  Get the set of vertices reachable from the given vertex.
+
+  A vertex is considered reachable from itself,
+  even if it does not have a self-loop edge. 
+  So the result will always have at least the source vertex itself.
+  """
+  @callback reachable(G.graph(), G.vert()) :: G.vset()
 end

@@ -133,6 +133,53 @@ defmodule Exa.Graf.GrafTest do
     )
   end
 
+  # components, reachable ----------
+
+  test "components" do
+    Enum.each([:agra, :dig], fn tag ->
+      # 3 components:
+      #   1       isolated
+      #   [2,3]   2 -> 3 
+      #   [4,5,6] 4 -> 5, 6 -> 5
+      g = build(tag, "comp123", [1, {2, 3}, {4, 5}, {6, 5}])
+
+      assert not connected?(g)
+      assert MapSet.new([2, 3]) == reachable(g, 2)
+      assert MapSet.new([4, 5]) == reachable(g, 4)
+      comps = components(g)
+      assert 3 = map_size(comps)
+      assert %{1 => [1], 2 => [2, 3], 4 => [4, 5, 6]} == comps
+    end)
+  end
+
+  # join ----------
+
+  test "join" do
+    for tag <- [:dig] do
+      # 3 components
+      v1 = [1, 2, 3, 4, 5, 6]
+      e1 = [{2, 3}, {4, 5}, {6, 5}]
+      g1 = build(tag, "orig", [1, e1])
+      # line joining 3 components
+      # and one edge the same as g1
+      e2 = [{1, 2}, {2, 4}, {4, 5}]
+      g2 = build(tag, "add", e2)
+
+      g3 = join(g1, g2, :merge)
+      assert MapSet.new(verts(g1) ++ verts(g2)) == MapSet.new(verts(g3))
+      assert MapSet.new(edges(g1) ++ edges(g2)) == MapSet.new(edges(g3))
+
+      # dig will change g1, so we have to recreate it from scratch
+      g1 = build(tag, "orig", [1, e1])
+
+      g4 = join(g1, g2, :disjoint)
+      # 1,2,4,5 from g2 get lifted to 7,8,10,11
+      assert Enum.sort(v1 ++ [7, 8, 10, 11]) == Enum.sort(verts(g4))
+      # edgesfrom g2 get lifted to {7,8},{8,10},{10,11}
+      assert Enum.sort(e1 ++ [{7, 8}, {8, 10}, {10, 11}]) == Enum.sort(edges(g4))
+    end
+  end
+
   defp builder(build, result) do
     for tag <- [:agra, :dig] do
       assert convert(build.(tag), :agra) == result

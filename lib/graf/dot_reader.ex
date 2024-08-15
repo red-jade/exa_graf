@@ -97,8 +97,8 @@ defmodule Exa.Graf.DotReader do
     parse(toks, [], {1, %{}, [gname], %{}})
   end
 
-  @spec parse([tok()], gdata(), context()) :: 
-     {G.gname(), gdata(), D.aliases(), D.graph_attrs()}
+  @spec parse([tok()], gdata(), context()) ::
+          {G.gname(), gdata(), D.aliases(), D.graph_attrs()}
 
   # node declaration
   defp parse([id, :semi_colon | toks], g, ctx) when is_string(id) do
@@ -230,7 +230,7 @@ defmodule Exa.Graf.DotReader do
     {i, {max(n, i + 1), als, gstack, gattrs}}
   end
 
-  defp id(<<c, _::binary>>=name, {n, als, gstack, gattrs} = ctx) when is_namestart(c) do
+  defp id(<<c, _::binary>> = name, {n, als, gstack, gattrs} = ctx) when is_namestart(c) do
     case Map.fetch(als, name) do
       {:ok, id} -> {id, ctx}
       :error -> {n, {n + 1, Map.put(als, name, n), gstack, gattrs}}
@@ -243,20 +243,20 @@ defmodule Exa.Graf.DotReader do
 
   @spec lex(String.t(), [tok()]) :: [tok()]
 
-  defp lex(<<ws , rest::binary>>, toks) when is_ws(ws), do: lex(rest, toks)
-  defp lex(<<?; , rest::binary>>, toks), do: lex(rest, [:semi_colon | toks])
-  defp lex(<<?[ , rest::binary>>, toks), do: lex(rest, [:open_square | toks])
-  defp lex(<<?] , rest::binary>>, toks), do: lex(rest, [:close_square | toks])
-  defp lex(<<?= , rest::binary>>, toks), do: lex(rest, [:equals | toks])
-  defp lex(<<?, , rest::binary>>, toks), do: lex(rest, [:comma | toks])
-  defp lex(<<?-, ?> , rest::binary>>, toks), do: lex(rest, [:arrow | toks])
-  defp lex(<<?/, ?* , rest::binary>>, toks), do: lex(comment(rest), toks)
+  defp lex(<<ws, rest::binary>>, toks) when is_ws(ws), do: lex(rest, toks)
+  defp lex(<<?;, rest::binary>>, toks), do: lex(rest, [:semi_colon | toks])
+  defp lex(<<?[, rest::binary>>, toks), do: lex(rest, [:open_square | toks])
+  defp lex(<<?], rest::binary>>, toks), do: lex(rest, [:close_square | toks])
+  defp lex(<<?=, rest::binary>>, toks), do: lex(rest, [:equals | toks])
+  defp lex(<<?,, rest::binary>>, toks), do: lex(rest, [:comma | toks])
+  defp lex(<<?-, ?>, rest::binary>>, toks), do: lex(rest, [:arrow | toks])
+  defp lex(<<?/, ?*, rest::binary>>, toks), do: lex(comment(rest), toks)
 
   # opening brace for start of graph declaration, nested cluster and anon rank
-  defp lex(<<?{ , rest::binary>>, toks), do: lex(rest, [:open_brace | toks])
+  defp lex(<<?{, rest::binary>>, toks), do: lex(rest, [:open_brace | toks])
 
   # closing brace for end of graph declaration
-  defp lex(<<?} , rest::binary>>, toks), do: lex(rest, [:close_brace | toks])
+  defp lex(<<?}, rest::binary>>, toks), do: lex(rest, [:close_brace | toks])
 
   # fixed keywords
   defp lex("digraph" <> rest, toks), do: lex(rest, [:digraph | toks])
@@ -265,7 +265,7 @@ defmodule Exa.Graf.DotReader do
   defp lex("edge" <> rest, toks), do: lex(rest, [:edge | toks])
 
   # quoted attr value - or quoted node name?
-  defp lex(<<?" , rest::binary>>, toks) do
+  defp lex(<<?", rest::binary>>, toks) do
     {str, rest} = quoted(rest, <<>>)
     lex(rest, [str | toks])
   end
@@ -289,12 +289,14 @@ defmodule Exa.Graf.DotReader do
   # consume a sequence and return a token
   # allow UTF8 in names, quotes and comments
 
-  defp name(<<c, rest::binary>>, name) when is_namechar(c) or c == ?., do: name(rest, <<name::binary, c>>)
+  defp name(<<c, rest::binary>>, name) when is_namechar(c) or c == ?.,
+    do: name(rest, <<name::binary, c>>)
+
   defp name(rest, name), do: {name, rest}
 
   defp quoted(<<?", rest::binary>>, name), do: {name, rest}
-  defp quoted(<<c::utf8 , rest::binary>>, name), do: quoted(rest, <<name::binary, c::utf8>>)
+  defp quoted(<<c::utf8, rest::binary>>, name), do: quoted(rest, <<name::binary, c::utf8>>)
 
-  defp comment(<<?*, ?/ , rest::binary>>), do: rest
+  defp comment(<<?*, ?/, rest::binary>>), do: rest
   defp comment(<<_::utf8, rest::binary>>), do: comment(rest)
 end

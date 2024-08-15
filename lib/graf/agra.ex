@@ -239,6 +239,51 @@ defmodule Exa.Graf.Agra do
     }
   end
 
+  @impl true
+  def components({:agra, _, {_, outadj}}) do
+    # union find algorithm
+    verts = Map.keys(outadj)
+
+    # build a map of every vert to its component id
+    # initially, it will be i => i for every vert
+    comps = Enum.reduce(verts, %{}, &Map.put(&2, &1, &1))
+
+    # for every edge, set the components to the lowest vert id
+    comps =
+      Enum.reduce(outadj, comps, fn {src, dset}, comps ->
+        csrc = Map.fetch!(comps, src)
+
+        Enum.reduce(dset, comps, fn dst, comps ->
+          cdst = Map.fetch!(comps, dst)
+
+          cond do
+            csrc == cdst -> comps
+            csrc < cdst -> Map.put(comps, dst, csrc)
+            cdst < csrc -> Map.put(comps, src, cdst)
+          end
+        end)
+      end)
+
+    # component verts will be sorted
+    Exa.Map.invert(comps)
+  end
+
+  @impl true
+  def reachable({:agra, _, {_inadj, outadj}}, i) when is_vert(i) do
+    do_reach(outadj, i, MapSet.new())
+  end
+
+  defp do_reach(outadj, i, reach) do
+    reach = MapSet.put(reach, i)
+    frontier = outadj |> Map.fetch!(i) |> MapSet.difference(reach)
+
+    if MapSet.size(frontier) == 0 do
+      reach
+    else
+      Enum.reduce(frontier, reach, fn j, reach -> do_reach(outadj, j, reach) end)
+    end
+  end
+
   # --------------
   # agra functions
   # --------------

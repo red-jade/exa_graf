@@ -234,6 +234,21 @@ defmodule Exa.Graf.Dig do
     {:error, "Unrecognized graph element #{gel}"}
   end
 
+  @impl true
+  def components({:dig, _, dig}) do
+    dig
+    |> :digraph_utils.components()
+    |> Enum.reduce(%{}, fn vdigs, comps ->
+      verts = vids(vdigs)
+      Map.put(comps, Enum.min(verts), Enum.sort(verts))
+    end)
+  end
+
+  @impl true
+  def reachable({:dig, _, dig}, i) do
+    [vmake(i)] |> :digraph_utils.reachable(dig) |> vids() |> MapSet.new()
+  end
+
   # -----------------
   # private functions
   # -----------------

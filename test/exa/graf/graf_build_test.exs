@@ -20,12 +20,34 @@ defmodule Exa.Graf.GrafBuildTest do
 
   # defp out_file(name), do: Exa.File.join(@out_dir, name, @filetype_agr)
 
+  test "empty" do
+    for tag <- [:agra, :dig] do
+      g = Graf.new(tag, "empty")
+      render(g, {[], [], [], []})
+      assert 0 == Graf.nvert(g)
+      assert 0 == Graf.nedge(g)
+      assert not Graf.connected?(g)
+      assert 0 == Graf.ncomp(g)
+      assert %{} == Graf.components(g)
+    end
+  end
+
   test "dust" do
     h1in = [10]
     h1out = [10]
     h1inout = [10]
     h2inout = [{{0, 0}, 10}]
-    grafy(&GrafBuild.dust/2, {h1in, h1out, h1inout, h2inout})
+    graphs = grafy(&GrafBuild.dust/2, {h1in, h1out, h1inout, h2inout})
+
+    for g <- graphs do
+      {1, 10} = Graf.verts_minmax(g)
+      comps = Graf.components(g)
+      assert not Graf.connected?(g)
+      assert MapSet.new([1]) == Graf.reachable(g, 1)
+      assert MapSet.new([5]) == Graf.reachable(g, 5)
+      assert 10 == Graf.ncomp(g)
+      assert Enum.reduce(1..10, %{}, &Map.put(&2, &1, [&1])) == comps
+    end
   end
 
   test "line" do
@@ -33,7 +55,16 @@ defmodule Exa.Graf.GrafBuildTest do
     h1out = [1, 9]
     h1inout = [0, 2, 8]
     h2inout = [{{0, 1}, 1}, {{1, 0}, 1}, {{1, 1}, 8}]
-    grafy(&GrafBuild.line/2, {h1in, h1out, h1inout, h2inout})
+    graphs = grafy(&GrafBuild.line/2, {h1in, h1out, h1inout, h2inout})
+
+    for g <- graphs do
+      comps = Graf.components(g)
+      assert Graf.connected?(g)
+      assert MapSet.new(1..10) == Graf.reachable(g, 1)
+      assert MapSet.new(5..10) == Graf.reachable(g, 5)
+      assert 1 == map_size(comps)
+      assert %{1 => Range.to_list(1..10)} == comps
+    end
   end
 
   test "ring" do
@@ -41,7 +72,15 @@ defmodule Exa.Graf.GrafBuildTest do
     h1out = [0, 10]
     h1inout = [0, 0, 10]
     h2inout = [{{1, 1}, 10}]
-    grafy(&GrafBuild.ring/2, {h1in, h1out, h1inout, h2inout})
+    graphs = grafy(&GrafBuild.ring/2, {h1in, h1out, h1inout, h2inout})
+
+    for g <- graphs do
+      comps = Graf.components(g)
+      assert Graf.connected?(g)
+      assert MapSet.new(1..10) == Graf.reachable(g, 1)
+      assert MapSet.new(1..10) == Graf.reachable(g, 5)
+      assert %{1 => Range.to_list(1..10)} == comps
+    end
   end
 
   test "fan_in" do
@@ -73,7 +112,16 @@ defmodule Exa.Graf.GrafBuildTest do
     h1out = [0, 9, 0, 0, 0, 0, 0, 0, 0, 1]
     h1inout = [0, 0, 0, 9, 0, 0, 0, 0, 0, 1]
     h2inout = [{{0, 9}, 1}, {{2, 1}, 9}]
-    grafy(&GrafBuild.wheel/2, {h1in, h1out, h1inout, h2inout})
+    graphs = grafy(&GrafBuild.wheel/2, {h1in, h1out, h1inout, h2inout})
+
+    for g <- graphs do
+      comps = Graf.components(g)
+      assert Graf.connected?(g)
+      assert MapSet.new(1..10) == Graf.reachable(g, 1)
+      assert MapSet.new(2..10) == Graf.reachable(g, 2)
+      assert 1 = Graf.ncomp(g)
+      assert %{1 => Range.to_list(1..10)} == comps
+    end
   end
 
   test "clique" do
@@ -81,7 +129,17 @@ defmodule Exa.Graf.GrafBuildTest do
     h1out = [0, 0, 0, 0, 0, 0, 0, 0, 0, 10]
     h1inout = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10]
     h2inout = [{{9, 9}, 10}]
-    grafy(&GrafBuild.clique/2, {h1in, h1out, h1inout, h2inout})
+    graphs = grafy(&GrafBuild.clique/2, {h1in, h1out, h1inout, h2inout})
+
+    for g <- graphs do
+      assert @n * (@n - 1) == Graf.nedge(g)
+      comps = Graf.components(g)
+      assert Graf.connected?(g)
+      assert MapSet.new(1..10) == Graf.reachable(g, 1)
+      assert MapSet.new(1..10) == Graf.reachable(g, 5)
+      assert 1 = Graf.ncomp(g)
+      assert %{1 => Range.to_list(1..10)} == comps
+    end
   end
 
   test "grid2d" do
@@ -90,8 +148,18 @@ defmodule Exa.Graf.GrafBuildTest do
     h1inout = [0, 0, 0, 0, 4, 0, 6, 0, 2]
     h2inout = [{{2, 2}, 4}, {{3, 3}, 6}, {{4, 4}, 2}]
 
-    for tag <- [:agra, :dig] do
-      tag |> GrafBuild.grid2d(4, 3) |> render({h1in, h1out, h1inout, h2inout})
+    graphs =
+      Enum.map([:agra, :dig], fn tag ->
+        g = GrafBuild.grid2d(tag, 4, 3)
+        render(g, {h1in, h1out, h1inout, h2inout})
+        g
+      end)
+
+    for g <- graphs do
+      assert Graf.connected?(g)
+      assert MapSet.new(1..12) == Graf.reachable(g, 1)
+      assert MapSet.new(1..12) == Graf.reachable(g, 7)
+      assert %{1 => Range.to_list(1..12)} == Graf.components(g)
     end
   end
 
@@ -121,9 +189,12 @@ defmodule Exa.Graf.GrafBuildTest do
   # -----------------
 
   defp grafy(fun_new, result) do
-    for tag <- [:agra, :dig] do
-      tag |> fun_new.(@n) |> render(result)
-    end
+    # return both graphs
+    Enum.map([:agra, :dig], fn tag ->
+      g = fun_new.(tag, @n)
+      render(g, result)
+      g
+    end)
   end
 
   defp render(g, result \\ nil) do
