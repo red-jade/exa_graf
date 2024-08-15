@@ -144,6 +144,21 @@ defmodule Exa.Graf.Types do
   @type adjacency() :: :in | :out | :inout
 
   @typedoc """
+  Classify a vertex.
+
+  Values are:
+  - `:isolated` no incident edges
+  - `:source` only outgoing edges
+  - `:sink` only incoming edges
+  - `:self` isolated with only a self loop
+  - `:linear` exactly 1 incoming and 1 outgoing edge, but not a self-loop
+  - `:complex` both incoming and outgoing edges, 
+     with one direction having at least 2 edges, 
+     including contribution of self-loops
+  """
+  @type vert_class() :: :isolated | :source | :sink | :self | :linear | :complex
+
+  @typedoc """
   Cyclicity property for the whole graph:
   - `:cyclic` general directed graph, allow cycles and self-loops
   - `:acyclic` _Directed Acyclic Graph_ (DAG), no cycles or self-loops

@@ -156,27 +156,51 @@ defmodule Exa.Graf.Graf do
   """
   @spec connected?(G.graph()) :: bool()
   def connected?(g) when is_graph(g) do
-    case Enum.find(verts(g), &isolated?(g, &1)) do
-      nil -> ncomp(g) == 1
-      _k -> false
-    end
+    iso_fun = fn i -> classify(g, i) == :isolated end
+    not Enum.any?(verts(g), iso_fun) and ncomp(g) == 1
   end
 
   @doc "Get the number of weakly connected components."
   @spec ncomp(G.graph()) :: E.count()
-  def ncomp(g) when is_graph(g), do: map_size(components(g))
+  def ncomp(g) when is_graph(g), do: g |> components() |> map_size()
 
   @doc "Get the isolated vertices that have no incident edges."
   @spec verts_isolated(G.graph()) :: G.verts()
   def verts_isolated(g) when is_graph(g) do
-    # note: could be a lot faster to dispatch this to the
-    # implementations by promoting it to be in the API
-    Enum.filter(verts(g), &isolated?(g, &1))
+    iso_fun = fn i -> classify(g, i) == :isolated end
+    Enum.filter(verts(g), iso_fun)
   end
 
-  @doc "Test if a vertex is isolated, with no incident edges."
-  @spec isolated?(G.graph(), G.vert()) :: bool()
-  def isolated?(g, i), do: {i, 0, 0} == degree(g, i, :inout)
+  @doc """
+  Classify a vertex. 
+
+  Values are:
+  - `:isolated` no incident edges
+  - `:source` only outgoing edges
+  - `:sink` only incoming edges
+  - `:self` isolated with only a self loop
+  - `:linear` exactly 1 incoming and 1 outgoing edge, but not a self-loop
+  - `:complex` both incoming and outgoing edges, 
+     with one direction having at least 2 edges, 
+     including contribution of self-loops
+
+  Returns an error if the vertex does not exist.
+  """
+  @spec classify(G.graph(), G.vert()) :: G.vert_class() | {:error, any()}
+  def classify(g, i) do
+    case degree(g, i, :inout) do
+      {:error, _} = err -> err
+      {_i, 0, 0} -> :isolated
+      {_i, _, 0} -> :sink
+      {_i, 0, _} -> :source
+      {_i, 1, 1} -> if edge?(g, {i, i}), do: :self, else: :linear
+      _ -> :complex
+    end
+  end
+
+  @doc "Test if a graph is a weakly connected tree."
+  @spec tree?(G.graph()) :: bool()
+  def tree?(g) when is_graph(g), do: nedge(g) == nvert(g) - 1 and connected?(g)
 
   @doc """
   Relabel a graph by applying a vertex mapper.

@@ -62,10 +62,13 @@ defmodule Exa.Graf.GrafTest do
   end
 
   test "add self loop" do
-    builder(
-      fn tag -> new(tag, "self loop") |> add(1) |> add({1, 1}) end,
-      {:agra, "self_loop", {%{1 => MapSet.new([1])}, %{1 => MapSet.new([1])}}}
-    )
+    graphs =
+      builder(
+        fn tag -> new(tag, "self loop") |> add(1) |> add({1, 1}) end,
+        {:agra, "self_loop", {%{1 => MapSet.new([1])}, %{1 => MapSet.new([1])}}}
+      )
+
+    for g <- graphs, do: assert(classify(g, 1) == :self)
   end
 
   test "add repeated vert" do
@@ -135,6 +138,21 @@ defmodule Exa.Graf.GrafTest do
 
   # components, reachable ----------
 
+  test "tree" do
+    Enum.each([:agra, :dig], fn tag ->
+      # the 5,3 edge is reversed, so not a strong tree
+      g = build(tag, "tree", [{1, 2}, {1, 3}, {3, 4}, {5,3}])
+
+      assert MapSet.new([1, 2, 3, 4]) == reachable(g, 1)
+      assert MapSet.new([3, 4, 5]) == reachable(g, 5)
+      assert connected?(g)
+      assert tree?(g)
+
+      g = delete(g,{1,2})
+      assert not tree?(g)
+    end)
+  end
+
   test "components" do
     Enum.each([:agra, :dig], fn tag ->
       # 3 components:
@@ -142,6 +160,10 @@ defmodule Exa.Graf.GrafTest do
       #   [2,3]   2 -> 3 
       #   [4,5,6] 4 -> 5, 6 -> 5
       g = build(tag, "comp123", [1, {2, 3}, {4, 5}, {6, 5}])
+
+      assert :isolated == classify(g, 1)
+      assert :source == classify(g, 2)
+      assert :sink == classify(g, 3)
 
       assert not connected?(g)
       assert MapSet.new([2, 3]) == reachable(g, 2)
@@ -155,7 +177,7 @@ defmodule Exa.Graf.GrafTest do
   # join ----------
 
   test "join" do
-    for tag <- [:dig] do
+    for tag <- [:agra, :dig] do
       # 3 components
       v1 = [1, 2, 3, 4, 5, 6]
       e1 = [{2, 3}, {4, 5}, {6, 5}]
@@ -182,7 +204,9 @@ defmodule Exa.Graf.GrafTest do
 
   defp builder(build, result) do
     for tag <- [:agra, :dig] do
-      assert convert(build.(tag), :agra) == result
+      g = build.(tag)
+      assert convert(g, :agra) == result
+      g
     end
   end
 end

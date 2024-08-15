@@ -60,6 +60,10 @@ defmodule Exa.Graf.GrafBuildTest do
     for g <- graphs do
       comps = Graf.components(g)
       assert Graf.connected?(g)
+      assert Graf.tree?(g)
+      assert :source == Graf.classify(g, 1)
+      assert :linear == Graf.classify(g, 2)
+      assert :sink == Graf.classify(g, 10)
       assert MapSet.new(1..10) == Graf.reachable(g, 1)
       assert MapSet.new(5..10) == Graf.reachable(g, 5)
       assert 1 == map_size(comps)
@@ -77,6 +81,8 @@ defmodule Exa.Graf.GrafBuildTest do
     for g <- graphs do
       comps = Graf.components(g)
       assert Graf.connected?(g)
+      assert not Graf.tree?(g)
+      assert :linear == Graf.classify(g, 1)
       assert MapSet.new(1..10) == Graf.reachable(g, 1)
       assert MapSet.new(1..10) == Graf.reachable(g, 5)
       assert %{1 => Range.to_list(1..10)} == comps
@@ -117,6 +123,7 @@ defmodule Exa.Graf.GrafBuildTest do
     for g <- graphs do
       comps = Graf.components(g)
       assert Graf.connected?(g)
+      assert not Graf.tree?(g)
       assert MapSet.new(1..10) == Graf.reachable(g, 1)
       assert MapSet.new(2..10) == Graf.reachable(g, 2)
       assert 1 = Graf.ncomp(g)
@@ -135,6 +142,10 @@ defmodule Exa.Graf.GrafBuildTest do
       assert @n * (@n - 1) == Graf.nedge(g)
       comps = Graf.components(g)
       assert Graf.connected?(g)
+      assert not Graf.tree?(g)
+      assert :complex == Graf.classify(g, 1)
+      assert :complex == Graf.classify(g, 5)
+
       assert MapSet.new(1..10) == Graf.reachable(g, 1)
       assert MapSet.new(1..10) == Graf.reachable(g, 5)
       assert 1 = Graf.ncomp(g)
@@ -157,6 +168,7 @@ defmodule Exa.Graf.GrafBuildTest do
 
     for g <- graphs do
       assert Graf.connected?(g)
+      assert not Graf.tree?(g)
       assert MapSet.new(1..12) == Graf.reachable(g, 1)
       assert MapSet.new(1..12) == Graf.reachable(g, 7)
       assert %{1 => Range.to_list(1..12)} == Graf.components(g)
