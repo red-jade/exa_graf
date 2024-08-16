@@ -68,7 +68,7 @@ defmodule Exa.Graf.GrafTest do
         {:agra, "self_loop", {%{1 => MapSet.new([1])}, %{1 => MapSet.new([1])}}}
       )
 
-    for g <- graphs, do: assert(classify(g, 1) == :self)
+    for g <- graphs, do: assert(classify(g, 1) == :self_isolated)
   end
 
   test "add repeated vert" do
@@ -136,6 +136,25 @@ defmodule Exa.Graf.GrafTest do
     )
   end
 
+  # classification ----------
+
+  test "classify" do
+    for tag <- [:agra, :dig] do
+      g =
+        new(tag, "class")
+        |> add(1..7)
+        # linear chain
+        |> add([{1, 2}, {2, 3}, {3, 4}, {4, 5}])
+        # two extra nodes on 2
+        |> add([{6, 2}, {2, 7}])
+        # self loops
+        |> add([{4, 4}, {6, 6}, {7, 7}])
+
+      assert [:source, :complex, :linear, :self_linear, :sink, :self_source, :self_sink] ==
+               Enum.map(1..7, &classify(g, &1))
+    end
+  end
+
   # components, reachable ----------
 
   test "tree" do
@@ -145,6 +164,8 @@ defmodule Exa.Graf.GrafTest do
 
       assert MapSet.new([1, 2, 3, 4]) == reachable(g, 1)
       assert MapSet.new([3, 4, 5]) == reachable(g, 5)
+      assert MapSet.new([1, 3, 4, 5]) == reachable(g, 4, :in)
+      assert MapSet.new([1, 3, 4, 5]) == reachable(g, 3, :inout)
       assert connected?(g)
       assert tree?(g)
 
@@ -155,6 +176,7 @@ defmodule Exa.Graf.GrafTest do
 
   test "components" do
     Enum.each([:agra, :dig], fn tag ->
+      IO.inspect(tag)
       # 3 components:
       #   1       isolated
       #   [2,3]   2 -> 3 
@@ -168,6 +190,8 @@ defmodule Exa.Graf.GrafTest do
       assert not connected?(g)
       assert MapSet.new([2, 3]) == reachable(g, 2)
       assert MapSet.new([4, 5]) == reachable(g, 4)
+      assert MapSet.new([2, 3]) == reachable(g, 3, :in)
+      assert MapSet.new([4, 5, 6]) == reachable(g, 5, :in)
       comps = components(g)
       assert 3 = map_size(comps)
       assert %{1 => [1], 2 => [2, 3], 4 => [4, 5, 6]} == comps
@@ -201,6 +225,10 @@ defmodule Exa.Graf.GrafTest do
       assert Enum.sort(e1 ++ [{7, 8}, {8, 10}, {10, 11}]) == Enum.sort(edges(g4))
     end
   end
+
+  # -----------------
+  # private functions
+  # -----------------
 
   defp builder(build, result) do
     for tag <- [:agra, :dig] do

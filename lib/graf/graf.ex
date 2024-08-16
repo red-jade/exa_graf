@@ -97,7 +97,8 @@ defmodule Exa.Graf.Graf do
   def components(g) when is_graph(g), do: dispatch(@disp, g, :components)
 
   @impl true
-  def reachable(g, i) when is_graph(g) and is_vert(i), do: dispatch(@disp, g, :reachable, [i])
+  def reachable(g, i, adjy \\ :out) when is_graph(g) and is_vert(i),
+    do: dispatch(@disp, g, :reachable, [i, adjy])
 
   # -----------------------
   # generic implementations 
@@ -191,15 +192,18 @@ defmodule Exa.Graf.Graf do
   """
   @spec classify(G.graph(), G.vert()) :: G.vert_class() | {:error, any()}
   def classify(g, i) do
+    self? = edge?(g, {i, i})
+
     case degree(g, i, :inout) do
       {:error, _} = err -> err
       {_i, 0, 0} -> :isolated
       {_i, _, 0} -> :sink
       {_i, 0, _} -> :source
-      {_i, 1, 1} -> if edge?(g, {i, i}), do: :self, else: :linear
-      {_i, _, 1} -> if edge?(g, {i, i}), do: :self_sink, else: :complex
-      {_i, 1, _} -> if edge?(g, {i, i}), do: :self_source, else: :complex
-      {_i, 2, 2} -> if edge?(g, {i, i}), do: :self_linear, else: :complex
+      {_i, 1, 1} when self? -> :self_isolated
+      {_i, 1, 1} -> :linear
+      {_i, _, 1} when self? -> :self_sink
+      {_i, 1, _} when self? -> :self_source
+      {_i, 2, 2} when self? -> :self_linear
       _ -> :complex
     end
   end

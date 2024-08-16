@@ -122,9 +122,17 @@ defmodule Exa.Graf.API do
   @doc """
   Get the set of vertices reachable from the given vertex.
 
-  A vertex is considered reachable from itself,
+  The adjacency argument means:
+  - `:in` upstream incoming edges, 
+     the set _reaching_ to this vertex
+  - `:out` downstream outgoing edges,
+     the set _reachable_ from this vertex
+  - `:inout` both upstream and downstream reachability,
+     as if the graph was undirected
+
+  A vertex is considered reaching/reachable itself,
   even if it does not have a self-loop edge. 
-  So the result will always have at least the source vertex itself.
+  So the result will always have at least the source vertex.
   """
-  @callback reachable(G.graph(), G.vert()) :: G.vset()
+  @callback reachable(G.graph(), G.vert(), G.adjacency()) :: G.vset()
 end

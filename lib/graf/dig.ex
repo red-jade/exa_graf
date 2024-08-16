@@ -245,8 +245,19 @@ defmodule Exa.Graf.Dig do
   end
 
   @impl true
-  def reachable({:dig, _, dig}, i) do
+
+  def reachable({:dig, _, dig}, i, :in) do
+    [vmake(i)] |> :digraph_utils.reaching(dig) |> vids() |> MapSet.new()
+  end
+
+  def reachable({:dig, _, dig}, i, :out) do
     [vmake(i)] |> :digraph_utils.reachable(dig) |> vids() |> MapSet.new()
+  end
+
+  def reachable(g, i, :inout) do
+    # faster way to do this when there is lots of overlap (cyclicity)
+    # see the recursive Agra implementation
+    MapSet.union(reachable(g, i, :in), reachable(g, i, :out))
   end
 
   # -----------------

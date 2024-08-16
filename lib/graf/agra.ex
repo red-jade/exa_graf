@@ -269,18 +269,29 @@ defmodule Exa.Graf.Agra do
   end
 
   @impl true
-  def reachable({:agra, _, {_inadj, outadj}}, i) when is_vert(i) do
-    do_reach(outadj, i, MapSet.new())
+
+  def reachable({:agra, _, {inadj, _}}, i, :in) when is_vert(i) do
+    # reaching this vertex
+    do_reach(MapSet.new(), inadj, i)
   end
 
-  defp do_reach(outadj, i, reach) do
+  def reachable({:agra, _, {_, outadj}}, i, :out) when is_vert(i) do
+    # reachable from this vertex
+    do_reach(MapSet.new(), outadj, i)
+  end
+
+  def reachable({:agra, _, {inadj, outadj}}, i, :inout) when is_vert(i) do
+    MapSet.new() |> do_reach(inadj, i) |> do_reach(outadj, i)
+  end
+
+  defp do_reach(reach, adj, i) do
     reach = MapSet.put(reach, i)
-    frontier = outadj |> Map.fetch!(i) |> MapSet.difference(reach)
+    frontier = adj |> Map.fetch!(i) |> MapSet.difference(reach)
 
     if MapSet.size(frontier) == 0 do
       reach
     else
-      Enum.reduce(frontier, reach, fn j, reach -> do_reach(outadj, j, reach) end)
+      Enum.reduce(frontier, reach, fn j, reach -> do_reach(reach, adj, j) end)
     end
   end
 
