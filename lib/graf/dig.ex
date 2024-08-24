@@ -10,11 +10,33 @@ defmodule Exa.Graf.Dig do
   There is at most one edge between the same ordered pair of vertices.
 
   The _digraph_ library stores vertex and edges data in ETS.
-  Erlang _digraph_ and ETS store state in a separate proceess.
+  which stores state in a separate proceess.
   So the graph object is stateful, it does not need to be
   threaded through all function calls.
-  However, it does need to be destroyed to free resources
-  if the client process is finished with the graph.
+
+  If you do assign variables to each stage of graph operation,
+  the variables are not immutable, the graph they refer to
+  will mutate over later operations.
+
+  Operations that mutate graphs are:
+  - `add/2`
+  - `delete/2`
+  - `join/3` 1st argument only
+
+  The digraph is decllared as `private` so only the creating
+  process can access the graph. This is to prevent 
+  attempts at parallel graph algorithms that would 
+  update the graph concurrently from many different processes.
+
+  The approach to parallel algorithms for Agra and Dig 
+  graphs has to be completely different, so no 
+  attempt is made to abstract these through the `Graf` API.
+
+  The graph must be destroyed to free resources
+  when the client process is finished with the graph,
+  but the client will continue execution.
+  If the client exits, then the graph resources 
+  are automatically freed.
   """
   use Exa.Graf.Constants
 
@@ -31,7 +53,7 @@ defmodule Exa.Graf.Dig do
 
   @impl true
   def new(:dig, gname, cyc \\ :cyclic) when is_gname(gname) and is_cyc(cyc) do
-    {:dig, gname, :digraph.new([cyc])}
+    {:dig, gname, :digraph.new([cyc, :private])}
   end
 
   @impl true

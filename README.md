@@ -1,4 +1,4 @@
-## EXA Graf
+# EXA Graf
 
 𝔼𝕏tr𝔸 𝔼li𝕏ir 𝔸dditions (𝔼𝕏𝔸)
 
@@ -8,7 +8,7 @@ Data structure and file I/O for directed graphs.
 
 Module path: `Exa.Graf`
 
-### Features
+## Features
 
 The _agra_ (A GRAph Research Adventure) 
 functional data structure for directed graphs,
@@ -59,7 +59,12 @@ Rendering of GraphViz DOT files
 to PNG, SVG images and other formats
 (if you have GraphViz DOT installed).
 
-### License
+## Building
+
+To bootstrap an `exa_xxx` library build, 
+you must run `mix deps.get` twice.
+
+## EXA License
 
 EXA source code is released under the MIT license.
 

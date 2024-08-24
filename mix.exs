@@ -5,11 +5,11 @@ defmodule Exa.Graf.MixProject do
     [
       app: :exa_graf,
       name: "Exa Graf",
-      version: "0.1.0",
+      version: "0.2.0",
       elixir: "~> 1.15",
       erlc_options: [:verbose, :report_errors, :report_warnings, :export_all],
       start_permanent: Mix.env() == :prod,
-      deps: deps(:main) ++ deps(:support),
+      deps: exa_deps(:exa_std, exa_libs()) ++ local_deps(),
       docs: docs(),
       test_pattern: "*_test.exs",
       dialyzer: [flags: [:no_improper_lists, :no_behaviours]]
@@ -31,38 +31,104 @@ defmodule Exa.Graf.MixProject do
     ]
   end
 
-  # runtime code dependencies ----------
-
-  defp deps(:main) do
-    [
-      {:exa, path: "../exa_core"},
-      {:exa_std, path: "../exa_std"},
-      {:exa_space, path: "../exa_space"},
-      {:exa_color, path: "../exa_color"}
+  defp exa_libs() do
+    [  
+      :exa_core, 
+      :exa_std,
+      :exa_space, 
+      :exa_color,
+      :dialyxir, 
+      :ex_doc,
+      :benchee
     ]
   end
 
-  defp deps(:tag) do
+  defp local_deps() do 
     [
-      {:exa, git: "https://github.com/red-jade/exa_core.git", tag: "v0.1.6"},
-      {:exa_std, git: "https://github.com/red-jade/exa_std.git", tag: "v0.1.7"},
-      {:exa_space, git: "https://github.com/red-jade/exa_space.git", tag: "v0.1.7"},
-      {:exa_color, git: "https://github.com/red-jade/exa_color.git", tag: "v0.1.7"}
     ]
   end
 
-  # building, documenting, testing ----------
+  # ---------------------------
+  # ***** EXA boilerplate *****
+  # shared by all EXA libraries
+  # ---------------------------
+  
+  # main entry point for dependencies
+  # bootstrap with 'mix deps.get exa'
+  defp exa_deps(name, libs) do
+    case System.argv() do
+      ["exa" | _] -> [exa_project()]
+      ["format" | _] -> [exa_project()]
+      ["deps.get", "exa" | _] -> [exa_project()]
+      ["deps.clean" | _] -> do_clean()
+      [cmd | _] -> do_deps(cmd, name, libs)
+    end
+  end
 
-  defp deps(:support) do
-    [
-      # typechecking
-      {:dialyxir, "~> 1.0", only: [:dev, :test], runtime: false},
+  defp do_clean() do
+    Enum.each([:local, :main, :tag], fn s -> s |> deps_file() |> File.rm() end)
+    [exa_project()]
+  end
 
-      # documentation
-      {:ex_doc, "~> 0.30", only: [:dev, :test], runtime: false},
+  defp do_deps(cmd, name, libs) do
+    scope = arg_build()
+    deps_path = deps_file(scope)
 
-      # benchmarking
-      {:benchee, "~> 1.0", only: [:dev, :test]}
-    ]
+    if not File.exists?(deps_path) do
+      # invoke the exa project mix task to generate dependencies
+      exa_args = Enum.map([:exa, scope | libs], &to_string/1)
+
+      case System.cmd("mix", exa_args) do
+        {_msg, 0} -> :ok
+        {_, _} -> IO.puts("Failed 'mix exa' dependency task")
+      end
+    end
+
+    deps =
+      if File.exists?(deps_path) do
+        deps_path |> Code.eval_file() |> elem(0)
+      else
+        IO.puts("No exa dependency file: #{deps_path}")
+        []
+      end
+
+    if deps != [] and String.starts_with?(cmd, ["deps", "compile"]) do
+      IO.inspect(deps, label: "#{name} #{scope}")
+    end
+
+    [exa_project()|deps]
+  end
+
+  # the deps literal file to be written for each scope
+  defp deps_file(scope), do: Path.join([".", "deps", "deps_#{scope}.ex"])
+
+  # parse the build scope from:
+  # - mix command line --build option
+  # - MIX_BUILD system environment variable
+  # - default to "tag"
+  defp arg_build() do
+    default = case System.fetch_env("MIX_BUILD") do
+      :error -> "tag"
+      {:ok, mix_build} -> mix_build
+    end
+
+    System.argv() 
+    |> tl() 
+    |> OptionParser.parse(strict: [build: :string])
+    |> elem(0)
+    |> Keyword.get(:build, default)
+    |> String.to_atom()
+  end
+
+  # the main exa umbrella library project
+  # provides the 'mix exa' task to generate dependencies
+  defp exa_project() do
+    {
+      :exa,
+      git: "https://github.com/red-jade/exa.git", 
+      branch: "main",
+      only: [:dev, :test], 
+      runtime: false
+    }
   end
 end
