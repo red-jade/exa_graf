@@ -59,6 +59,45 @@ Rendering of GraphViz DOT files
 to PNG, SVG images and other formats
 (if you have GraphViz DOT installed).
 
+## Graph Mutability
+
+The `Exa.Graf.Graf` generic interface supports two graph types:
+- `agra`, in-memory in-process functional data structure
+- `dig` (Erlang `digraph`) stores data in-memory out-of-process in ETS
+
+Agra is a functional data structure, so every mutation generates
+a new version of the graph. Dig is a mutable stateful data structure
+maintained in a separate process. 
+
+Mutations to dig graphs will mutate previous references,
+so any derived values must be captured before mutation.
+
+For example, consider adding a vertex to a graph:
+
+```
+g1 = Graf.new(type, "test")
+n1 = Graf.nvert(g1)
+
+g2 = Graf.add(g1,1)
+n2 = Graf.nvert(g2)
+
+n = Graf.nvert(g1)
+```
+
+If the _type_ is `:agra` the data is functional,
+so `n == n1 == 0` and `Graf.equal?(g1,g2) == false`.
+
+If the _type_ is `:dig` the data is mutated, 
+so `n == n2 == 1` and `Graf.equal?(g1,g2) == true`.
+
+Operations that mutate graphs are:
+  - `add/2`
+  - `delete/2`
+  - `join/3` 1st argument only
+  
+Dig graphs should call `delete/1` to delete the graph resources
+stored in ETS. Deleting an agra graphs is a no-op.
+
 ## Building
 
 To bootstrap an `exa_xxx` library build, 
