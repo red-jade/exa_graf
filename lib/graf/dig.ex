@@ -23,7 +23,7 @@ defmodule Exa.Graf.Dig do
   - `delete/2`
   - `join/3` 1st argument only
 
-  The digraph is decllared as `private` so only the creating
+  The digraph is declared as `private` so only the creating
   process can access the graph. This is to prevent 
   attempts at parallel graph algorithms that would 
   update the graph concurrently from many different processes.
