@@ -187,8 +187,8 @@ defmodule Exa.Graf.DotWriter do
     io
     |> newl()
     |> reduce(ids, fn id, io ->
-      {i, _attrs} = id_attrs!(id, gattrs)
-      txt(io, [i, "; "])
+      {i, attrs} = id_attrs!(id, gattrs)
+      io |> txt(i) |> attrs(attrs) |> txt("; ")
     end)
     |> endl()
   end
@@ -231,7 +231,8 @@ defmodule Exa.Graf.DotWriter do
     |> reduce(edges, fn {id, jd}, io ->
       {i, _} = id_attrs!(id, gattrs)
       {j, _} = id_attrs!(jd, gattrs)
-      txt(io, [i, " -> ", j, "; "])
+      eattrs = Map.get(gattrs, {id, jd}, [])
+      io |> txt([i, " -> ", j]) |> attrs(eattrs) |> txt("; ")
     end)
     |> endl()
   end

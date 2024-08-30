@@ -176,7 +176,6 @@ defmodule Exa.Graf.GrafTest do
 
   test "components" do
     Enum.each([:agra, :dig], fn tag ->
-      IO.inspect(tag)
       # 3 components:
       #   1       isolated
       #   [2,3]   2 -> 3 
