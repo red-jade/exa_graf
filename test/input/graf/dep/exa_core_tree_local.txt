@@ -10,4 +10,4 @@ exa_core
 |   `-- makeup_erlang ~> 0.1 or ~> 1.0 (Hex package)
 |       `-- makeup ~> 1.0 (Hex package)
 |-- exa (https://github.com/red-jade/exa.git - main)
-`-- pkg_json (https://github.com/pkg/json.git - master)
+`-- pkg_json (https://github.com/pkg/json.git - main)

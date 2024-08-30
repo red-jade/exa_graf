@@ -14,4 +14,4 @@ exa_json
 |       `-- makeup ~> 1.0 (Hex package)
 |-- exa (https://github.com/red-jade/exa.git - main)
 |-- exa_core (https://github.com/red-jade/exa_core.git - v0.2.2)
-`-- pkg_json (https://github.com/pkg/json.git - master)
+`-- pkg_json (https://github.com/pkg/json.git - main)
