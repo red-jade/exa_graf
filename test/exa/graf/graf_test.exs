@@ -10,7 +10,7 @@ defmodule Exa.Graf.GrafTest do
   test "add vert" do
     builder(
       fn tag -> new(tag, "vert") |> add(1) |> add(2) |> add(3) end,
-      {:agra, "vert",
+      {:adj, "vert",
        {%{1 => MapSet.new([]), 2 => MapSet.new([]), 3 => MapSet.new([])},
         %{1 => MapSet.new([]), 2 => MapSet.new([]), 3 => MapSet.new([])}}}
     )
@@ -19,7 +19,7 @@ defmodule Exa.Graf.GrafTest do
   test "add verts" do
     builder(
       fn tag -> new(tag, "verts") |> add([1, 2, 3]) end,
-      {:agra, "verts",
+      {:adj, "verts",
        {%{1 => MapSet.new([]), 2 => MapSet.new([]), 3 => MapSet.new([])},
         %{1 => MapSet.new([]), 2 => MapSet.new([]), 3 => MapSet.new([])}}}
     )
@@ -28,7 +28,7 @@ defmodule Exa.Graf.GrafTest do
   test "add range" do
     builder(
       fn tag -> new(tag, "range") |> add(1..3) end,
-      {:agra, "range",
+      {:adj, "range",
        {%{1 => MapSet.new([]), 2 => MapSet.new([]), 3 => MapSet.new([])},
         %{1 => MapSet.new([]), 2 => MapSet.new([]), 3 => MapSet.new([])}}}
     )
@@ -37,7 +37,7 @@ defmodule Exa.Graf.GrafTest do
   test "add edge" do
     builder(
       fn tag -> new(tag, "edge") |> add({1, 2}) |> add({2, 3}) |> add({1, 3}) end,
-      {:agra, "edge",
+      {:adj, "edge",
        {%{1 => MapSet.new([]), 2 => MapSet.new([1]), 3 => MapSet.new([1, 2])},
         %{1 => MapSet.new([2, 3]), 2 => MapSet.new([3]), 3 => MapSet.new([])}}}
     )
@@ -46,7 +46,7 @@ defmodule Exa.Graf.GrafTest do
   test "add edges" do
     builder(
       fn tag -> new(tag, "edges") |> add([{1, 2}, {2, 3}, {1, 3}]) end,
-      {:agra, "edges",
+      {:adj, "edges",
        {%{1 => MapSet.new([]), 2 => MapSet.new([1]), 3 => MapSet.new([1, 2])},
         %{1 => MapSet.new([2, 3]), 2 => MapSet.new([3]), 3 => MapSet.new([])}}}
     )
@@ -55,7 +55,7 @@ defmodule Exa.Graf.GrafTest do
   test "add adj" do
     builder(
       fn tag -> new(tag, "adj") |> add({1, [2, 3]}) |> add({2, [3]}) end,
-      {:agra, "adj",
+      {:adj, "adj",
        {%{1 => MapSet.new([]), 2 => MapSet.new([1]), 3 => MapSet.new([1, 2])},
         %{1 => MapSet.new([2, 3]), 2 => MapSet.new([3]), 3 => MapSet.new([])}}}
     )
@@ -65,7 +65,7 @@ defmodule Exa.Graf.GrafTest do
     graphs =
       builder(
         fn tag -> new(tag, "self loop") |> add(1) |> add({1, 1}) end,
-        {:agra, "self_loop", {%{1 => MapSet.new([1])}, %{1 => MapSet.new([1])}}}
+        {:adj, "self_loop", {%{1 => MapSet.new([1])}, %{1 => MapSet.new([1])}}}
       )
 
     for g <- graphs, do: assert(classify(g, 1) == :self_isolated)
@@ -74,7 +74,7 @@ defmodule Exa.Graf.GrafTest do
   test "add repeated vert" do
     builder(
       fn tag -> new(tag, "vert") |> add(1) |> add(1) |> add([3, 3]) end,
-      {:agra, "vert",
+      {:adj, "vert",
        {%{1 => MapSet.new([]), 3 => MapSet.new([])}, %{1 => MapSet.new([]), 3 => MapSet.new([])}}}
     )
   end
@@ -82,7 +82,7 @@ defmodule Exa.Graf.GrafTest do
   test "add repeated edge" do
     builder(
       fn tag -> new(tag, "edge") |> add({1, 2}) |> add({1, 2}) |> add([{1, 3}, {1, 3}]) end,
-      {:agra, "edge",
+      {:adj, "edge",
        {%{1 => MapSet.new([]), 2 => MapSet.new([1]), 3 => MapSet.new([1])},
         %{1 => MapSet.new([2, 3]), 2 => MapSet.new([]), 3 => MapSet.new([])}}}
     )
@@ -95,7 +95,7 @@ defmodule Exa.Graf.GrafTest do
   test "valid tri" do
     builder(
       &tri/1,
-      {:agra, "tri",
+      {:adj, "tri",
        {%{1 => MapSet.new([]), 2 => MapSet.new([1]), 3 => MapSet.new([1, 2])},
         %{1 => MapSet.new([2, 3]), 2 => MapSet.new([3]), 3 => MapSet.new([])}}}
     )
@@ -104,7 +104,7 @@ defmodule Exa.Graf.GrafTest do
   test "del vert" do
     builder(
       fn tag -> tri(tag) |> delete(1) end,
-      {:agra, "tri",
+      {:adj, "tri",
        {%{2 => MapSet.new([]), 3 => MapSet.new([2])},
         %{2 => MapSet.new([3]), 3 => MapSet.new([])}}}
     )
@@ -113,7 +113,7 @@ defmodule Exa.Graf.GrafTest do
   test "del edge" do
     builder(
       fn tag -> tri(tag) |> delete({1, 3}) end,
-      {:agra, "tri",
+      {:adj, "tri",
        {%{1 => MapSet.new([]), 2 => MapSet.new([1]), 3 => MapSet.new([2])},
         %{1 => MapSet.new([2]), 2 => MapSet.new([3]), 3 => MapSet.new([])}}}
     )
@@ -122,7 +122,7 @@ defmodule Exa.Graf.GrafTest do
   test "del adj" do
     builder(
       fn tag -> tri(tag) |> delete({1, [2, 3]}) end,
-      {:agra, "tri",
+      {:adj, "tri",
        {%{1 => MapSet.new([]), 2 => MapSet.new([]), 3 => MapSet.new([2])},
         %{1 => MapSet.new([]), 2 => MapSet.new([3]), 3 => MapSet.new([])}}}
     )
@@ -131,7 +131,7 @@ defmodule Exa.Graf.GrafTest do
   test "del list" do
     builder(
       fn tag -> tri(tag) |> delete([1, {2, 3}]) end,
-      {:agra, "tri",
+      {:adj, "tri",
        {%{2 => MapSet.new([]), 3 => MapSet.new([])}, %{2 => MapSet.new([]), 3 => MapSet.new([])}}}
     )
   end
@@ -139,7 +139,7 @@ defmodule Exa.Graf.GrafTest do
   # classification ----------
 
   test "classify" do
-    for tag <- [:agra, :dig] do
+    for tag <- [:adj, :dig] do
       g =
         new(tag, "class")
         |> add(1..7)
@@ -158,7 +158,7 @@ defmodule Exa.Graf.GrafTest do
   # components, reachable ----------
 
   test "tree" do
-    Enum.each([:agra, :dig], fn tag ->
+    Enum.each([:adj, :dig], fn tag ->
       # the 5,3 edge is reversed, so not a strong tree
       g = build(tag, "tree", [{1, 2}, {1, 3}, {3, 4}, {5, 3}])
 
@@ -175,7 +175,7 @@ defmodule Exa.Graf.GrafTest do
   end
 
   test "components" do
-    Enum.each([:agra, :dig], fn tag ->
+    Enum.each([:adj, :dig], fn tag ->
       # 3 components:
       #   1       isolated
       #   [2,3]   2 -> 3 
@@ -200,7 +200,7 @@ defmodule Exa.Graf.GrafTest do
   # join ----------
 
   test "join" do
-    for tag <- [:agra, :dig] do
+    for tag <- [:adj, :dig] do
       # 3 components
       v1 = [1, 2, 3, 4, 5, 6]
       e1 = [{2, 3}, {4, 5}, {6, 5}]
@@ -230,9 +230,9 @@ defmodule Exa.Graf.GrafTest do
   # -----------------
 
   defp builder(build, result) do
-    for tag <- [:agra, :dig] do
+    for tag <- [:adj, :dig] do
       g = build.(tag)
-      assert convert(g, :agra) == result
+      assert convert(g, :adj) == result
       g
     end
   end

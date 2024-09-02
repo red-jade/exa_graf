@@ -10,11 +10,10 @@ Module path: `Exa.Graf`
 
 ## Features
 
-The _agra_ (A GRAph Research Adventure) 
-functional data structure for directed graphs,
+The _adj_ functional data structure for directed graphs,
 based on in-memory adjacency lists.
 
-A wrapper around the Erlang `digraph` module,
+A _dig_ wrapper around the Erlang `digraph` module,
 with data stored in ETS (in-memory database process).
 
 An abstraction for both graphs types,
@@ -50,7 +49,7 @@ Relabelling of graphs to permute vertex identifiers.
 Combining graphs using _merge_ of vertices and edges,
 or _disjoint_ independent addition.
 
-Serialization of _agra_ data to/from files 
+Serialization of _adj_ data to/from files 
 using Elixir term format.
 
 Serialization to/from GraphViz DOT format.
@@ -62,10 +61,10 @@ to PNG, SVG images and other formats
 ## Graph Mutability
 
 The `Exa.Graf.Graf` generic interface supports two graph types:
-- `agra`, in-memory in-process functional data structure
+- `adj`, in-memory in-process functional data structure
 - `dig` (Erlang `digraph`) stores data in-memory out-of-process in ETS
 
-Agra is a functional data structure, so every mutation generates
+Adj is a functional data structure, so every mutation generates
 a new version of the graph. Dig is a mutable stateful data structure
 maintained in a separate process. 
 
@@ -84,7 +83,7 @@ n2 = Graf.nvert(g2)
 n = Graf.nvert(g1)
 ```
 
-If the _type_ is `:agra` the data is functional,
+If the _type_ is `:adj` the data is functional,
 so `n == n1 == 0` and `Graf.equal?(g1,g2) == false`.
 
 If the _type_ is `:dig` the data is mutated, 
@@ -96,7 +95,7 @@ Operations that mutate graphs are:
   - `join/3` 1st argument only
   
 Dig graphs should call `delete/1` to delete the graph resources
-stored in ETS. Deleting an agra graphs is a no-op.
+stored in ETS. Deleting an adj graph is a no-op.
 
 ## Building
 

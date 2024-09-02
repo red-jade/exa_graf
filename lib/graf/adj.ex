@@ -1,4 +1,4 @@
-defmodule Exa.Graf.Agra do
+defmodule Exa.Graf.Adj do
   @moduledoc """
   A data structure for directed graphs using 
   adjacency sets.
@@ -49,18 +49,18 @@ defmodule Exa.Graf.Agra do
   @behaviour Exa.Graf.API
 
   @impl true
-  def new(:agra, gname, _cyc \\ :cyclic) when is_gname(gname) do
-    {:agra, gname, {Mos.new(), Mos.new()}}
+  def new(:adj, gname, _cyc \\ :cyclic) when is_gname(gname) do
+    {:adj, gname, {Mos.new(), Mos.new()}}
   end
 
   @impl true
-  def delete(g) when is_agra(g), do: true
+  def delete(g) when is_adj(g), do: true
 
   @impl true
-  def add({:agra, gname, adjs}, gelem) do
+  def add({:adj, gname, adjs}, gelem) do
     case do_add(adjs, gelem) do
       {:error, _} = err -> err
-      adjs -> {:agra, gname, adjs}
+      adjs -> {:adj, gname, adjs}
     end
   end
 
@@ -116,10 +116,10 @@ defmodule Exa.Graf.Agra do
   end
 
   @impl true
-  def delete({:agra, gname, adjs}, gelem) do
+  def delete({:adj, gname, adjs}, gelem) do
     case do_del(adjs, gelem) do
       {:error, _} = err -> err
-      adjs -> {:agra, gname, adjs}
+      adjs -> {:adj, gname, adjs}
     end
   end
 
@@ -179,59 +179,59 @@ defmodule Exa.Graf.Agra do
   end
 
   @impl true
-  def vert?({:agra, _, {_, outadj}}, i), do: is_map_key(outadj, i)
+  def vert?({:adj, _, {_, outadj}}, i), do: is_map_key(outadj, i)
 
   @impl true
-  def edge?({:agra, _, {_, outadj}}, {src, dst}), do: Mos.member?(outadj, src, dst)
+  def edge?({:adj, _, {_, outadj}}, {src, dst}), do: Mos.member?(outadj, src, dst)
 
   @impl true
-  def nvert({:agra, _, {_, outadj}}), do: map_size(outadj)
+  def nvert({:adj, _, {_, outadj}}), do: map_size(outadj)
 
   @impl true
-  def nedge({:agra, _, {_, outadj}}), do: Mos.sizes(outadj)
+  def nedge({:adj, _, {_, outadj}}), do: Mos.sizes(outadj)
 
   @impl true
-  def verts({:agra, _, {_, outadj}}), do: Map.keys(outadj)
+  def verts({:adj, _, {_, outadj}}), do: Map.keys(outadj)
 
   @impl true
-  def edges({:agra, _, {_, outadj}}) do
+  def edges({:adj, _, {_, outadj}}) do
     Enum.reduce(outadj, [], fn {src, dset}, es ->
       Enum.reduce(dset, es, fn dst, es -> [{src, dst} | es] end)
     end)
   end
 
   @impl true
-  def degree({:agra, _, {inadj, _}}, i, _) when not is_map_key(inadj, i) do
+  def degree({:adj, _, {inadj, _}}, i, _) when not is_map_key(inadj, i) do
     {:error, "Vertex #{i} does not exist"}
   end
 
-  def degree({:agra, _, {inadj, _}}, i, :in) when is_vert(i) do
+  def degree({:adj, _, {inadj, _}}, i, :in) when is_vert(i) do
     {i, Mos.size(inadj, i)}
   end
 
-  def degree({:agra, _, {_, outadj}}, i, :out) when is_vert(i) do
+  def degree({:adj, _, {_, outadj}}, i, :out) when is_vert(i) do
     {i, Mos.size(outadj, i)}
   end
 
-  def degree({:agra, _, {inadj, outadj}}, i, :inout) when is_vert(i) do
+  def degree({:adj, _, {inadj, outadj}}, i, :inout) when is_vert(i) do
     {i, Mos.size(inadj, i), Mos.size(outadj, i)}
   end
 
   @impl true
 
-  def neighborhood({:agra, _, {inadj, _}}, i, _) when not is_map_key(inadj, i) do
+  def neighborhood({:adj, _, {inadj, _}}, i, _) when not is_map_key(inadj, i) do
     {:error, "Vertex #{i} does not exist"}
   end
 
-  def neighborhood({:agra, _, {inadj, _}}, i, :in) when is_vert(i) do
+  def neighborhood({:adj, _, {inadj, _}}, i, :in) when is_vert(i) do
     {i, inadj |> Mos.get(i) |> MapSet.to_list()}
   end
 
-  def neighborhood({:agra, _, {_, outadj}}, i, :out) when is_vert(i) do
+  def neighborhood({:adj, _, {_, outadj}}, i, :out) when is_vert(i) do
     {i, outadj |> Mos.get(i) |> MapSet.to_list()}
   end
 
-  def neighborhood({:agra, _, {inadj, outadj}}, i, :inout) when is_vert(i) do
+  def neighborhood({:adj, _, {inadj, outadj}}, i, :inout) when is_vert(i) do
     {
       i,
       inadj |> Mos.get(i) |> MapSet.to_list(),
@@ -240,7 +240,7 @@ defmodule Exa.Graf.Agra do
   end
 
   @impl true
-  def components({:agra, _, {_, outadj}}) do
+  def components({:adj, _, {_, outadj}}) do
     # union find algorithm
     verts = Map.keys(outadj)
 
@@ -270,12 +270,12 @@ defmodule Exa.Graf.Agra do
 
   @impl true
 
-  def reachable({:agra, _, {inadj, _}}, i, :in, nhop) when is_vert(i) do
+  def reachable({:adj, _, {inadj, _}}, i, :in, nhop) when is_vert(i) do
     # reaching to this vertex
     do_reach(MapSet.new(), inadj, i, nhop(nhop))
   end
 
-  def reachable({:agra, _, {_, outadj}}, i, :out, nhop) when is_vert(i) do
+  def reachable({:adj, _, {_, outadj}}, i, :out, nhop) when is_vert(i) do
     # reachable from this vertex
     do_reach(MapSet.new(), outadj, i, nhop(nhop))
   end
@@ -303,12 +303,12 @@ defmodule Exa.Graf.Agra do
   defp nhop(nhop) when is_count(nhop), do: nhop
 
   # --------------
-  # agra functions
+  # adj functions
   # --------------
 
-  @doc "Read an agraph from file in Elixir literal format."
-  @spec from_agra_file(E.filename()) :: G.agra() | {:error, any}
-  def from_agra_file(filename) when is_filename(filename) do
+  @doc "Read an adj graph from file in Elixir literal format."
+  @spec from_adj_file(E.filename()) :: G.adj() | {:error, any}
+  def from_adj_file(filename) when is_filename(filename) do
     Exa.File.ensure_file!(filename)
     Logger.info("Read  AGR file: #{filename}")
     filename |> Code.eval_file() |> elem(0)
@@ -317,22 +317,22 @@ defmodule Exa.Graf.Agra do
   end
 
   @doc """
-  Write an agraph to file in Elixir literal format.
+  Write an adj graph to file in Elixir literal format.
 
   Return the full relative path.
   """
-  @spec to_agra_file(G.agra(), E.filename()) :: E.filename() | {:error, any()}
-  def to_agra_file({:agra, gname, _adjs} = agra, outdir)
+  @spec to_adj_file(G.adj(), E.filename()) :: E.filename() | {:error, any()}
+  def to_adj_file({:adj, gname, _adjs} = adj, outdir)
       when is_filename(outdir) and is_gname(gname) do
     Exa.File.ensure_dir!(outdir)
-    path = Exa.File.join(outdir, gname, @filetype_agr)
+    path = Exa.File.join(outdir, gname, @filetype_adj)
     # 1. is there a correct way to get a literal text form of data?
     # 2. could compress by removing inadjs and just write outadjs
     #    then recover inadjs by inverting outadjs on read
     # 3. could use :erlang.term_to_binary for compression
     #    but then not human readable/editable
     # 4. could add :text|:binary arg to choose output format
-    text = inspect(agra, charlists: :as_lists, limit: :infinity)
+    text = inspect(adj, charlists: :as_lists, limit: :infinity)
     Exa.File.to_file_text(text, path)
     to_string(path)
   rescue

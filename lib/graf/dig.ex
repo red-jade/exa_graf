@@ -28,7 +28,7 @@ defmodule Exa.Graf.Dig do
   attempts at parallel graph algorithms that would 
   update the graph concurrently from many different processes.
 
-  The approach to parallel algorithms for Agra and Dig 
+  The approach to parallel algorithms for Adj and Dig 
   graphs has to be completely different, so no 
   attempt is made to abstract these through the `Graf` API.
 

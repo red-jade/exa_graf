@@ -15,15 +15,14 @@ defmodule Exa.Graf.DepReader do
   alias Exa.Graf.Graf
 
   @doc """
-  Read a deps.tree TXT file.
+  Read a mix deps.tree TXT file.
   """
   @spec from_dep_file(E.filename()) :: {G.graph(), D.graph_attrs()} | {:error, any()}
-  # {G.graph(), D.graph_attrs()} | {:error, any()}
-  def from_dep_file(tag \\ :agra, filename) when is_gtype(tag) and is_filename(filename) do
+  def from_dep_file(tag \\ :adj, filename) when is_gtype(tag) and is_filename(filename) do
     case Exa.File.from_file_lines(filename) do
       lines when is_list(lines) ->
         {_, basename, _} = Exa.File.split(filename)
-        g = Graf.new(:agra, basename)
+        g = Graf.new(:adj, basename)
 
         {index, g, labels} =
           lines

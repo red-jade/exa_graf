@@ -12,16 +12,16 @@ defmodule Exa.Graf.GrafBuildTest do
 
   @n 10
 
-  @in_dir Path.join(["test", "input", "graf", "agr"])
+  @in_dir Path.join(["test", "input", "graf", "adj"])
 
-  @out_dir Path.join(["test", "output", "graf", "agr"])
+  @out_dir Path.join(["test", "output", "graf", "adj"])
 
-  defp in_file(name), do: Exa.File.join(@in_dir, name, @filetype_agr)
+  defp in_file(name), do: Exa.File.join(@in_dir, name, @filetype_adj)
 
-  # defp out_file(name), do: Exa.File.join(@out_dir, name, @filetype_agr)
+  # defp out_file(name), do: Exa.File.join(@out_dir, name, @filetype_adj)
 
   test "empty" do
-    for tag <- [:agra, :dig] do
+    for tag <- [:adj, :dig] do
       g = Graf.new(tag, "empty")
       render(g, {[], [], [], []})
       assert 0 == Graf.nvert(g)
@@ -106,8 +106,8 @@ defmodule Exa.Graf.GrafBuildTest do
   end
 
   test "fan in/out iso" do
-    fin = GrafBuild.fan_in(:agra, @n)
-    fout = GrafBuild.fan_out(:agra, @n)
+    fin = GrafBuild.fan_in(:adj, @n)
+    fout = GrafBuild.fan_out(:adj, @n)
     assert :undecided == Graf.isomorphic?(fin, fin)
     assert :undecided == Graf.isomorphic?(fout, fout)
     assert false == Graf.isomorphic?(fin, fout)
@@ -164,7 +164,7 @@ defmodule Exa.Graf.GrafBuildTest do
     h2inout = [{{2, 2}, 4}, {{3, 3}, 6}, {{4, 4}, 2}]
 
     graphs =
-      Enum.map([:agra, :dig], fn tag ->
+      Enum.map([:adj, :dig], fn tag ->
         g = GrafBuild.grid2d(tag, 4, 3)
         render(g, {h1in, h1out, h1inout, h2inout})
         g
@@ -180,7 +180,7 @@ defmodule Exa.Graf.GrafBuildTest do
   end
 
   test "random" do
-    for tag <- [:agra, :dig] do
+    for tag <- [:adj, :dig] do
       g = GrafBuild.random(tag, @n, 2 * @n)
       render(g)
       assert @n == Graf.nvert(g)
@@ -191,13 +191,13 @@ defmodule Exa.Graf.GrafBuildTest do
   # read/write AGR format
 
   test "to file" do
-    path = GrafBuild.line(:agra, @n) |> Graf.to_agra_file(@out_dir)
-    assert path == Path.join([@out_dir, "line_#{@n}.agr"])
+    path = GrafBuild.line(:adj, @n) |> Graf.to_adj_file(@out_dir)
+    assert path == Path.join([@out_dir, "line_#{@n}." <> to_string(@filetype_adj)])
   end
 
   test "from file" do
-    line = "line_#{@n}" |> in_file() |> Graf.from_agra_file()
-    assert Graf.equal?(line, GrafBuild.line(:agra, @n))
+    line = "line_#{@n}" |> in_file() |> Graf.from_adj_file()
+    assert Graf.equal?(line, GrafBuild.line(:adj, @n))
   end
 
   # -----------------
@@ -206,7 +206,7 @@ defmodule Exa.Graf.GrafBuildTest do
 
   defp grafy(fun_new, result) do
     # return both graphs
-    Enum.map([:agra, :dig], fn tag ->
+    Enum.map([:adj, :dig], fn tag ->
       g = fun_new.(tag, @n)
       render(g, result)
       g
@@ -219,7 +219,7 @@ defmodule Exa.Graf.GrafBuildTest do
     h1inout = g |> Graf.degree_histo1d(:inout) |> Histo1D.to_list()
     h2inout = g |> Graf.degree_histo2d() |> Histo2D.to_list()
 
-    case Graf.to_agra_file(g, @out_dir) do
+    case Graf.to_adj_file(g, @out_dir) do
       {:error, msg} ->
         raise msg
 

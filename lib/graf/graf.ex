@@ -8,7 +8,7 @@ defmodule Exa.Graf.Graf do
     with the abstract interface
 
   The current list of graph modules is:
-  - Agra: in-memory adjacency lists
+  - Adj: in-memory adjacency lists
   - Dig: Erlang `digraph` ETS database
 
   Graph data structures use tagged tuples.
@@ -34,7 +34,7 @@ defmodule Exa.Graf.Graf do
   alias Exa.Std.Histo2D
   alias Exa.Std.Tidal
 
-  alias Exa.Graf.Agra
+  alias Exa.Graf.Adj
   alias Exa.Graf.Dig
   alias Exa.Graf.DotReader
   alias Exa.Graf.DotWriter, as: DOT
@@ -45,7 +45,7 @@ defmodule Exa.Graf.Graf do
   # constants
   # ---------
 
-  @disp %{:agra => Agra, :dig => Dig}
+  @disp %{:adj => Adj, :dig => Dig}
 
   # ----------------
   # public interface
@@ -254,11 +254,11 @@ defmodule Exa.Graf.Graf do
   The content of the second graph is merged into the first graph.
   The second graph is not modified.
 
-  Note that Agra and Dig graphs behave differently under mutation.
+  Note that Adj and Dig graphs behave differently under mutation.
 
-  Agra is a functionl data structure, 
+  Adj is a functionl data structure, 
   so every update creates a new object.
-  Merging Agra graphs is free from side-effects
+  Merging Adj graphs is free from side-effects
   and a new graph will be created.
 
   Dig uses a persistent stateful database 
@@ -380,7 +380,7 @@ defmodule Exa.Graf.Graf do
   This may be very slow, consider spawning as a task:
   - digraph (dig) is stored in ETS (separate process)
     so `Task` asynch/await may be appropriate
-  - agra is in-process, so a spawned task will
+  - adj is in-process, so a spawned task will
     may incur an overhead for copying all graph data 
   """
   @spec equal?(G.graph(), G.graph()) :: bool()
@@ -470,26 +470,26 @@ defmodule Exa.Graf.Graf do
   not taken from the file basename.
   """
   @spec from_dot_file(G.gtype(), E.filename()) :: {G.graph(), D.graph_attrs()}
-  def from_dot_file(tag \\ :agra, filename) when is_gtype(tag) and is_filename(filename) do
+  def from_dot_file(tag \\ :adj, filename) when is_gtype(tag) and is_filename(filename) do
     DotReader.from_dot_file(tag, filename)
   end
 
-  @doc "Read an graph from an AGR file in Elixir literal format."
-  @spec from_agra_file(G.gtype(), E.filename()) :: G.graph() | {:error, any()}
-  def from_agra_file(tag \\ :agra, filename) when is_gtype(tag) and is_filename(filename) do
-    case Agra.from_agra_file(filename) do
+  @doc "Read an graph from an ADJ file in Elixir literal format."
+  @spec from_adj_file(G.gtype(), E.filename()) :: G.graph() | {:error, any()}
+  def from_adj_file(tag \\ :adj, filename) when is_gtype(tag) and is_filename(filename) do
+    case Adj.from_adj_file(filename) do
       {:error, _} = err -> err
-      agra -> convert(agra, tag)
+      adj -> convert(adj, tag)
     end
   end
 
   @doc """
-  Write a graph to an AGR file in Elixir literal format.
+  Write a graph to an ADJ file in Elixir literal format.
 
   Return the full output filename.
   """
-  @spec to_agra_file(G.graph(), E.filename()) :: E.filename() | {:error, any()}
-  def to_agra_file(g, outdir) when is_graph(g) and is_filename(outdir) do
-    g |> convert(:agra) |> Agra.to_agra_file(outdir)
+  @spec to_adj_file(G.graph(), E.filename()) :: E.filename() | {:error, any()}
+  def to_adj_file(g, outdir) when is_graph(g) and is_filename(outdir) do
+    g |> convert(:adj) |> Adj.to_adj_file(outdir)
   end
 end

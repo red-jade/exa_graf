@@ -1,12 +1,12 @@
 defmodule Exa.Graf.Types do
-  @moduledoc "Types and guards for agra graph format."
+  @moduledoc "Types and guards for graphs."
 
   import Exa.Types
   alias Exa.Types, as: E
 
   alias Exa.Std.Mos, as: M
 
-  # agra format ----------
+  # graf format ----------
 
   @typedoc "A vertex id is a positive integer."
   @type vert() :: pos_integer()
@@ -22,10 +22,7 @@ defmodule Exa.Graf.Types do
   @typedoc "A set of vertices."
   @type vset() :: MapSet.t(vert())
 
-  @typedoc """
-  A directed edge is an ordered pair of vertices.
-  The vertices should be previously defined.
-  """
+  @typedoc "A directed edge is an ordered pair of vertices."
   @type edge() :: {vert(), vert()}
 
   defguard is_edge(e)
@@ -35,8 +32,8 @@ defmodule Exa.Graf.Types do
   @typedoc "List of edges."
   @type edges() :: [edge()]
 
-  @typedoc "A single adjacency list."
-  @type adj() :: {vert(), verts()}
+  @typedoc "A single out-adjacency list."
+  @type adjlist() :: {vert(), verts()}
 
   # TODO? - a small space optimization is to make adjmap defaults for m=0,1
   #   m=0  {src, nil or []}
@@ -62,7 +59,7 @@ defmodule Exa.Graf.Types do
   - out adjacency list 
   - list of all of the above
   """
-  @type gelem() :: vert() | vseq() | edge() | adj() | glist()
+  @type gelem() :: vert() | vseq() | edge() | adjlist() | glist()
 
   @typedoc "List of graph elements."
   @type glist() :: [gelem()]
@@ -73,7 +70,7 @@ defmodule Exa.Graf.Types do
   defguard is_gname(gname) when is_nonempty_string(gname)
 
   @typedoc """
-  An agra graph data structure.
+  An adjacency graph data structure.
 
   Graph elements are stored in two adjacency maps 
   for in and out neighbors.
@@ -90,9 +87,9 @@ defmodule Exa.Graf.Types do
 
   Repeated edges are not supported.
   """
-  @type agra() :: {:agra, gname(), adjmaps()}
+  @type adj() :: {:adj, gname(), adjmaps()}
 
-  defguard is_agra(a) when is_tag_tuple(a, 3, :agra) and is_gname(elem(a, 1))
+  defguard is_adj(a) when is_tag_tuple(a, 3, :adj) and is_gname(elem(a, 1))
 
   @typedoc """
   A named Erlang digraph.
@@ -110,16 +107,16 @@ defmodule Exa.Graf.Types do
   defguard is_dig(g) when is_tag_tuple(g, 3, :dig)
 
   @typedoc "The set of tags for graph tuple types."
-  @type gtype() :: :agra | :dig
+  @type gtype() :: :adj | :dig
 
-  defguard is_gtype(t) when t in [:agra, :dig]
+  defguard is_gtype(t) when t in [:adj, :dig]
 
   @typedoc """
   A supertype for all graph types.
 
   A graphs must be a tagged 3-tuple, with name and specific data.
   """
-  @type graph() :: agra() | dig()
+  @type graph() :: adj() | dig()
 
   defguard is_graph(g) when is_fix_tuple(g, 3) and is_gtype(elem(g, 0))
 

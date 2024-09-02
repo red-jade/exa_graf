@@ -5,7 +5,7 @@ defmodule Exa.Graf.DotReaderTest do
 
   alias Exa.Std.Histo2D
 
-  alias Exa.Graf.Agra
+  alias Exa.Graf.Adj
   alias Exa.Graf.Graf
 
   import Exa.Graf.DotReader
@@ -41,7 +41,7 @@ defmodule Exa.Graf.DotReaderTest do
         {3, 8}
       ])
 
-    assert edges == graph |> Agra.edges() |> Enum.sort()
+    assert edges == graph |> Adj.edges() |> Enum.sort()
 
     assert [alias: "parse"] == gattrs[2]
     assert [alias: "execute"] == gattrs[3]
@@ -53,9 +53,9 @@ defmodule Exa.Graf.DotReaderTest do
 
     # note 7 is missing because it is used as an identifier
     # for the anonymous subgraph that is used for rank similarity
-    assert [1, 2, 3, 4, 5, 6, 8, 9] == Agra.verts(graph)
+    assert [1, 2, 3, 4, 5, 6, 8, 9] == Adj.verts(graph)
     edges = Enum.sort([{1, 2}, {2, 3}, {1, 4}, {1, 5}, {4, 5}, {2, 4}, {8, 9}])
-    assert edges == graph |> Agra.edges() |> Enum.sort()
+    assert edges == graph |> Adj.edges() |> Enum.sort()
     assert [alias: "b", shape: "box"] == gattrs[2]
 
     assert [
@@ -92,7 +92,7 @@ defmodule Exa.Graf.DotReaderTest do
     assert %{{3, 3} => 10} == h
     assert Histo2D.homogeneous(h)
 
-    for fmt <- [:agra, :dig] do
+    for fmt <- [:adj, :dig] do
       g = Graf.convert(peter, fmt)
       p1_1 = Graf.reachable(g, 1, :out, 1)
       assert MapSet.new([1,2,5,6]) == p1_1

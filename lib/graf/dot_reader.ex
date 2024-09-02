@@ -39,7 +39,7 @@ defmodule Exa.Graf.DotReader do
   # dialyzer does not understand that Exa.File.from... can return error?
   @dialyzer {:nowarn_function, from_dot_file: 2}
   @spec from_dot_file(G.gtype(), E.filename()) :: {G.graph(), D.graph_attrs()} | {:error, any()}
-  def from_dot_file(tag \\ :agra, filename) when is_gtype(tag) and is_filename(filename) do
+  def from_dot_file(tag \\ :adj, filename) when is_gtype(tag) and is_filename(filename) do
     case Exa.File.from_file_text(filename, comments: ["//", "#"]) do
       text when is_string(text) ->
         {gname, gdata, als, gattrs} = text |> lex([]) |> parse()
