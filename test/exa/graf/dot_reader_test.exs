@@ -87,9 +87,17 @@ defmodule Exa.Graf.DotReaderTest do
   end
 
   test "dot input petersen" do
-      {peter, _gattrs} = "petersen" |> in_file() |> from_dot_file()
-      h = Graf.degree_histo2d(peter)
-      assert %{{3,3} => 10} == h
-      assert Histo2D.homogeneous(h)
+    {peter, _gattrs} = "petersen" |> in_file() |> from_dot_file()
+    h = Graf.degree_histo2d(peter)
+    assert %{{3, 3} => 10} == h
+    assert Histo2D.homogeneous(h)
+
+    for fmt <- [:agra, :dig] do
+      g = Graf.convert(peter, fmt)
+      p1_1 = Graf.reachable(g, 1, :out, 1)
+      assert MapSet.new([1,2,5,6]) == p1_1
+      p1_2 = Graf.reachable(g, 1, :out, 2)
+      assert MapSet.new(1..10) == p1_2
+    end
   end
 end

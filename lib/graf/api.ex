@@ -120,7 +120,8 @@ defmodule Exa.Graf.API do
   @callback components(G.graph()) :: G.components()
 
   @doc """
-  Get the set of vertices reachable from the given vertex.
+  Get the set of vertices reachable from the given vertex
+  in a certain number of steps (which may be `:infinity`).
 
   The adjacency argument means:
   - `:in` upstream incoming edges, 
@@ -134,5 +135,5 @@ defmodule Exa.Graf.API do
   even if it does not have a self-loop edge. 
   So the result will always have at least the source vertex.
   """
-  @callback reachable(G.graph(), G.vert(), G.adjacency()) :: G.vset()
+  @callback reachable(G.graph(), G.vert(), G.adjacency(), G.nhop()) :: G.vset()
 end

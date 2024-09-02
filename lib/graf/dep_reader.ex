@@ -95,12 +95,12 @@ defmodule Exa.Graf.DepReader do
   defp parse([{d, name, src, req} | deps], stack, index, n, g, labels) do
     {i, new_n, new_index, new_labels} =
       if is_map_key(index, name) do
-          # existing node
-          {Map.fetch!(index, name), n, index, labels}
+        # existing node
+        {Map.fetch!(index, name), n, index, labels}
       else
-          # new node
-          label = name <> "\n" <> to_string(src) <> "\n" <> req
-          {n, n + 1, Map.put(index, name, n), Map.put(labels, n, label)}
+        # new node
+        label = name <> "\n" <> to_string(src) <> "\n" <> req
+        {n, n + 1, Map.put(index, name, n), Map.put(labels, n, label)}
       end
 
     # reversed DOT arrow?
@@ -135,17 +135,23 @@ defmodule Exa.Graf.DepReader do
 
     {src, req} =
       cond do
-        is_nil(req) and is_nil(src) -> {:root, nil}
-        src == "Hex package" -> {:hex, req}
-        String.starts_with?(src, "..") -> {:local, src}
-        String.starts_with?(src, "http") -> 
+        is_nil(req) and is_nil(src) ->
+          {:root, nil}
+
+        src == "Hex package" ->
+          {:hex, req}
+
+        String.starts_with?(src, "..") ->
+          {:local, src}
+
+        String.starts_with?(src, "http") ->
           # assumes format:  (url - tag_or_branch)
           # assumes tags are semantically versioned starting with 'v'
           # and branches do not begin with 'v'
           # if no tag or branch is given
           # will default to {:branch, url}
           case src |> String.split() |> List.last() do
-            <<?v, _::binary>>=tag -> {:tag, tag}
+            <<?v, _::binary>> = tag -> {:tag, tag}
             ref -> {:branch, ref}
           end
       end

@@ -144,6 +144,21 @@ defmodule Exa.Graf.Types do
   @type adjacency() :: :in | :out | :inout
 
   @typedoc """
+  The number of hops in a path through the graph.
+
+  Each edge counts as one unit.
+
+  A hop of zero includes just the source vertex.
+
+  A value of `:infinity` means explore with traversal 
+  to the limits of the graph, 
+  under some other termination constraint.
+
+  """
+  @type nhop() :: E.count() | :infinity
+  defguard is_nhop(n) when is_count(n) or n == :infinity
+
+  @typedoc """
   Classify a vertex.
 
   Values are:

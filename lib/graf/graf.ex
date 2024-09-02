@@ -91,14 +91,16 @@ defmodule Exa.Graf.Graf do
   def degree(g, i, adjy) when is_graph(g), do: dispatch(@disp, g, :degree, [i, adjy])
 
   @impl true
-  def neighborhood(g, i, adjy) when is_graph(g), do: dispatch(@disp, g, :neighborhood, [i, adjy])
+  def neighborhood(g, i, adjy) when is_graph(g),
+    do: dispatch(@disp, g, :neighborhood, [i, adjy])
 
   @impl true
-  def components(g) when is_graph(g), do: dispatch(@disp, g, :components)
+  def components(g) when is_graph(g),
+    do: dispatch(@disp, g, :components)
 
   @impl true
-  def reachable(g, i, adjy \\ :out) when is_graph(g) and is_vert(i),
-    do: dispatch(@disp, g, :reachable, [i, adjy])
+  def reachable(g, i, adjy \\ :out, nhop \\ :infinity) when is_graph(g) and is_vert(i),
+    do: dispatch(@disp, g, :reachable, [i, adjy, nhop])
 
   # -----------------------
   # generic implementations 
@@ -384,10 +386,12 @@ defmodule Exa.Graf.Graf do
   @spec equal?(G.graph(), G.graph()) :: bool()
   def equal?(g1, g2) when is_graph(g1) and is_graph(g2) do
     case isomorphic?(g1, g2) do
-      false -> false
-      :undecided -> 
-        g1 |> verts() |> Enum.sort() == g2 |> verts() |> Enum.sort() and 
-        g1 |> edges() |> Enum.sort() == g2 |> edges() |> Enum.sort()
+      false ->
+        false
+
+      :undecided ->
+        g1 |> verts() |> Enum.sort() == g2 |> verts() |> Enum.sort() and
+          g1 |> edges() |> Enum.sort() == g2 |> edges() |> Enum.sort()
     end
   end
 

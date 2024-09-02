@@ -270,30 +270,37 @@ defmodule Exa.Graf.Agra do
 
   @impl true
 
-  def reachable({:agra, _, {inadj, _}}, i, :in) when is_vert(i) do
-    # reaching this vertex
-    do_reach(MapSet.new(), inadj, i)
+  def reachable({:agra, _, {inadj, _}}, i, :in, nhop) when is_vert(i) do
+    # reaching to this vertex
+    do_reach(MapSet.new(), inadj, i, nhop(nhop))
   end
 
-  def reachable({:agra, _, {_, outadj}}, i, :out) when is_vert(i) do
+  def reachable({:agra, _, {_, outadj}}, i, :out, nhop) when is_vert(i) do
     # reachable from this vertex
-    do_reach(MapSet.new(), outadj, i)
+    do_reach(MapSet.new(), outadj, i, nhop(nhop))
   end
 
-  def reachable({:agra, _, {inadj, outadj}}, i, :inout) when is_vert(i) do
-    MapSet.new() |> do_reach(inadj, i) |> do_reach(outadj, i)
+  def reachable(g, i, :inout, nhop) when is_vert(i) do
+    MapSet.union(reachable(g, i, :in, nhop), reachable(g, i, :out, nhop))
   end
 
-  defp do_reach(reach, adj, i) do
+  @spec do_reach(MapSet.t(), G.adjacency(), G.vert(), integer()) :: MapSet.t()
+
+  defp do_reach(reach, _adj, i, 0), do: MapSet.put(reach, i)
+
+  defp do_reach(reach, adj, i, n) do
     reach = MapSet.put(reach, i)
-    frontier = adj |> Map.fetch!(i) |> MapSet.difference(reach)
 
-    if MapSet.size(frontier) == 0 do
-      reach
-    else
-      Enum.reduce(frontier, reach, fn j, reach -> do_reach(reach, adj, j) end)
-    end
+    adj
+    |> Map.fetch!(i)
+    |> MapSet.difference(reach)
+    # frontier - if empty, will immediately pass through current reach
+    |> Enum.reduce(reach, fn j, reach -> do_reach(reach, adj, j, n - 1) end)
   end
+
+  @spec nhop(G.nhop()) :: integer()
+  defp nhop(:infinity), do: -1
+  defp nhop(nhop) when is_count(nhop), do: nhop
 
   # --------------
   # agra functions

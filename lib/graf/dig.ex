@@ -268,18 +268,43 @@ defmodule Exa.Graf.Dig do
 
   @impl true
 
-  def reachable({:dig, _, dig}, i, :in) do
+  def reachable(g, i, :inout, nhop) do
+    # faster way to do this when there is lots of overlap (cyclicity)
+    MapSet.union(reachable(g, i, :in, nhop), reachable(g, i, :out, nhop))
+  end
+
+  def reachable({:dig, _, dig}, i, :in, :infinity) do
     [vmake(i)] |> :digraph_utils.reaching(dig) |> vids() |> MapSet.new()
   end
 
-  def reachable({:dig, _, dig}, i, :out) do
+  def reachable({:dig, _, dig}, i, :out, :infinity) do
     [vmake(i)] |> :digraph_utils.reachable(dig) |> vids() |> MapSet.new()
   end
 
-  def reachable(g, i, :inout) do
-    # faster way to do this when there is lots of overlap (cyclicity)
-    # see the recursive Agra implementation
-    MapSet.union(reachable(g, i, :in), reachable(g, i, :out))
+  def reachable({:dig, _, dig}, i, adjy, nhop) when adjy in [:in, :out] and is_count(nhop) do
+    MapSet.new() |> do_reach(dig, vmake(i), adjy, nhop) |> vids() |> MapSet.new()
+  end
+
+  @spec do_reach(MapSet.t(), :digraph.digraph(), :digraph.vertex(), G.adjacency(), E.count()) ::
+          MapSet.t()
+
+  defp do_reach(reach, _dig, iv, _adjy, 0), do: MapSet.put(reach, iv)
+
+  defp do_reach(reach, dig, iv, adjy, n) do
+    reach = MapSet.put(reach, iv)
+
+    neighs =
+      case adjy do
+        :in -> dig |> :digraph.in_neighbours(iv) |> MapSet.new()
+        :out -> dig |> :digraph.out_neighbours(iv) |> MapSet.new()
+      end
+      
+    frontier = MapSet.difference(neighs, reach)
+
+    # if frontier is empty, will immediately pass through current reach
+    Enum.reduce(frontier, reach, fn jv, reach ->
+      do_reach(reach, dig, jv, adjy, n - 1)
+    end)
   end
 
   # -----------------
@@ -298,8 +323,8 @@ defmodule Exa.Graf.Dig do
 
   # extract id from a list of vertices
   @dialyzer {:no_unused, vids: 1}
-  @spec vids([:digraph.vertex()]) :: G.verts()
-  defp vids(vs) when is_list(vs), do: Enum.map(vs, &vid/1)
+  @spec vids(Enumerable.t(:digraph.vertex())) :: G.verts()
+  defp vids(vs), do: Enum.map(vs, &vid/1)
 
   # extract the id from a dig vertex
   @spec vid(:digraph.vertex()) :: G.vert()
