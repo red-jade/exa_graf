@@ -150,6 +150,10 @@ defmodule Exa.Graf.GrafBuildTest do
       assert MapSet.new(1..10) == Graf.reachable(g, 5)
       assert 1 = Graf.ncomp(g)
       assert %{1 => Range.to_list(1..10)} == comps
+
+      h = Graf.degree_histo2d(g)
+      assert h == %{{9, 9} => 10}
+      assert Histo2D.homogeneous(h)
     end
   end
 

@@ -3,7 +3,10 @@ defmodule Exa.Graf.DotReaderTest do
 
   use Exa.Graf.Constants
 
+  alias Exa.Std.Histo2D
+
   alias Exa.Graf.Agra
+  alias Exa.Graf.Graf
 
   import Exa.Graf.DotReader
 
@@ -81,5 +84,12 @@ defmodule Exa.Graf.DotReaderTest do
       # IO.inspect(graph, label: "graph ")
       # IO.inspect(gattrs, label: "attrs")
     end
+  end
+
+  test "dot input petersen" do
+      {peter, _gattrs} = "petersen" |> in_file() |> from_dot_file()
+      h = Graf.degree_histo2d(peter)
+      assert %{{3,3} => 10} == h
+      assert Histo2D.homogeneous(h)
   end
 end
