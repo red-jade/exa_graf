@@ -385,7 +385,9 @@ defmodule Exa.Graf.Graf do
   def equal?(g1, g2) when is_graph(g1) and is_graph(g2) do
     case isomorphic?(g1, g2) do
       false -> false
-      :undecided -> verts(g1) == verts(g2) and edges(g1) == edges(g2)
+      :undecided -> 
+        g1 |> verts() |> Enum.sort() == g2 |> verts() |> Enum.sort() and 
+        g1 |> edges() |> Enum.sort() == g2 |> edges() |> Enum.sort()
     end
   end
 
