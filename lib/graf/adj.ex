@@ -284,7 +284,7 @@ defmodule Exa.Graf.Adj do
     MapSet.union(reachable(g, i, :in, nhop), reachable(g, i, :out, nhop))
   end
 
-  @spec do_reach(MapSet.t(), G.adjacency(), G.vert(), integer()) :: MapSet.t()
+  @spec do_reach(MapSet.t(), G.adjmap(), G.vert(), integer()) :: MapSet.t()
 
   defp do_reach(reach, _adj, i, 0), do: MapSet.put(reach, i)
 

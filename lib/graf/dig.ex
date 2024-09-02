@@ -298,7 +298,7 @@ defmodule Exa.Graf.Dig do
         :in -> dig |> :digraph.in_neighbours(iv) |> MapSet.new()
         :out -> dig |> :digraph.out_neighbours(iv) |> MapSet.new()
       end
-      
+
     frontier = MapSet.difference(neighs, reach)
 
     # if frontier is empty, will immediately pass through current reach

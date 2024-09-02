@@ -76,7 +76,7 @@ defmodule Exa.Graf.DepReader do
   @typep dep() :: {
            depth :: E.count(),
            name :: String.t(),
-           src :: nil | String.t(),
+           src :: :root | :hex | :branch | :tag | :local,
            req :: nil | String.t()
          }
   @typep index() :: %{String.t() => G.vert()}
@@ -120,7 +120,7 @@ defmodule Exa.Graf.DepReader do
   # lexer 
   # -----
 
-  @spec lex(String.t(), E.count()) :: [dep()]
+  @spec lex(String.t(), E.count()) :: dep()
 
   defp lex("|-- " <> rest, d), do: lex(rest, d + 1)
   defp lex("|   " <> rest, d), do: lex(rest, d + 1)
