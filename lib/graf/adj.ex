@@ -128,40 +128,25 @@ defmodule Exa.Graf.Adj do
   defp do_del(adjs, []), do: adjs
 
   defp do_del({inadj, outadj}, i) when is_vert(i) do
-    {
-      inadj |> Map.delete(i) |> Mos.remove_all(i),
-      outadj |> Map.delete(i) |> Mos.remove_all(i)
-    }
+    outadj = inadj |> Mos.get(i) |> Enum.reduce(outadj, &Mos.remove(&2, &1, i))
+    inadj = outadj |> Mos.get(i) |> Enum.reduce(inadj, &Mos.remove(&2, &1, i))
+    {Map.delete(inadj, i), Map.delete(outadj, i)}
   end
 
-  defp do_del({inadj, outadj}, r) when is_range(r) do
-    {
-      Enum.reduce(r, inadj, fn i, inadj ->
-        inadj |> Map.delete(i) |> Mos.remove_all(i)
-      end),
-      Enum.reduce(r, outadj, fn i, outadj ->
-        outadj |> Map.delete(i) |> Mos.remove_all(i)
-      end)
-    }
+  defp do_del(adjs, r) when is_range(r) do
+    Enum.reduce(r, adjs, &do_del(&1, &1))
   end
 
   defp do_del({inadj, outadj}, {src, dst} = e) when is_edge(e) do
-    {
-      Mos.remove(inadj, dst, src),
-      Mos.remove(outadj, src, dst)
-    }
+    {Mos.remove(inadj, dst, src), Mos.remove(outadj, src, dst)}
   end
 
-  defp do_del(adjs, {src, []}), do: do_del(adjs, src)
+  defp do_del(adjs, {_src, []}), do: adjs
 
   defp do_del({inadj, outadj}, {src, dsts}) when is_list(dsts) do
     {
-      Enum.reduce(dsts, inadj, fn dst, inadj ->
-        Mos.remove(inadj, dst, src)
-      end),
-      Enum.reduce(dsts, Mos.adds(outadj, src, dsts), fn dst, outadj ->
-        Mos.remove(outadj, src, dst)
-      end)
+      Enum.reduce(dsts, inadj, &Mos.remove(&2, &1, src)),
+      Mos.removes(outadj, src, dsts)
     }
   end
 
