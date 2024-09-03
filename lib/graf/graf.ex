@@ -45,6 +45,7 @@ defmodule Exa.Graf.Graf do
   # constants
   # ---------
 
+  # dispatch map from tag to implementation module
   @disp %{:adj => Adj, :dig => Dig}
 
   # ----------------
@@ -283,6 +284,51 @@ defmodule Exa.Graf.Graf do
       # note relabel creates a new graph, so g2 remains unchanged
       delta = max1 - min2 + 1
       join(g1, relabel(g2, fn i -> i + delta end), :merge)
+    end
+  end
+
+  @doc """
+  Contract an edge.
+
+  Merge the two nodes at the ends of an edge.
+  The remaining node will have the vertex id of the src node.
+  The src node will have edges added 
+  for all in/out neighbors of the dst node.
+  Any duplicated edges will be ignored.
+  The dst node and all its edges will be deleted.
+
+  If the target edge is a self-edge,
+  then it will be deleted,
+  but no other changes are made.
+
+  If the dst node had a self-edge, 
+  a self-edge will be added to the src node.
+
+  If the target edge does not exist, there is no effect,
+  and the result will be the same as the input.
+  Otherwise, the input graph will be modified.
+  """
+  @spec contract_edge(G.graph(), G.edge()) :: G.graph()
+  def contract_edge(g, {i, j} = e) do
+    cond do
+      not edge?(g, e) ->
+        g
+
+      i == j ->
+        delete(g, e)
+
+      true ->
+        # transfer any self-edge from dst to src
+        g = if(edge?(g, {j, j}), do: g |> add({i, i}) |> delete({j, j}), else: g)
+
+        # transfer dst inward edges 
+        g = g |> neighborhood(j, :in) |> elem(1) |> Enum.reduce(g, &add(&2, {&1, i}))
+
+        # transfer dst outward edges
+        g = g |> neighborhood(j, :out) |> elem(1) |> Enum.reduce(g, &add(&2, {i, &1}))
+
+        # deleting the dst node deletes all its edges
+        delete(g, j)
     end
   end
 
