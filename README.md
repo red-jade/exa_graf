@@ -93,6 +93,7 @@ Operations that mutate graphs are:
   - `add/2`
   - `delete/2`
   - `join/3` 1st argument only
+  - `contract_edge/2`
   
 Dig graphs should call `delete/1` to delete the graph resources
 stored in ETS. Deleting an adj graph is a no-op.
