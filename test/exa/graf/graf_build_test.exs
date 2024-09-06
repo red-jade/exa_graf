@@ -3,6 +3,7 @@ defmodule Exa.Graf.GrafBuildTest do
 
   use Exa.Graf.Constants
 
+  alias Exa.Std.Mol
   alias Exa.Std.Histo1D
   alias Exa.Std.Histo2D
 
@@ -67,7 +68,7 @@ defmodule Exa.Graf.GrafBuildTest do
       assert MapSet.new(1..10) == Graf.reachable(g, 1)
       assert MapSet.new(5..10) == Graf.reachable(g, 5)
       assert 1 == map_size(comps)
-      assert %{1 => Range.to_list(1..10)} == comps
+      assert %{1 => Range.to_list(1..10)} == Mol.sort(comps)
     end
   end
 
@@ -85,7 +86,7 @@ defmodule Exa.Graf.GrafBuildTest do
       assert :linear == Graf.classify(g, 1)
       assert MapSet.new(1..10) == Graf.reachable(g, 1)
       assert MapSet.new(1..10) == Graf.reachable(g, 5)
-      assert %{1 => Range.to_list(1..10)} == comps
+      assert %{1 => Range.to_list(1..10)} == Mol.sort(comps)
     end
   end
 
@@ -127,7 +128,7 @@ defmodule Exa.Graf.GrafBuildTest do
       assert MapSet.new(1..10) == Graf.reachable(g, 1)
       assert MapSet.new(2..10) == Graf.reachable(g, 2)
       assert 1 = Graf.ncomp(g)
-      assert %{1 => Range.to_list(1..10)} == comps
+      assert %{1 => Range.to_list(1..10)} == Mol.sort(comps)
     end
   end
 
@@ -149,11 +150,11 @@ defmodule Exa.Graf.GrafBuildTest do
       assert MapSet.new(1..10) == Graf.reachable(g, 1)
       assert MapSet.new(1..10) == Graf.reachable(g, 5)
       assert 1 = Graf.ncomp(g)
-      assert %{1 => Range.to_list(1..10)} == comps
+      assert %{1 => Range.to_list(1..10)} == Mol.sort(comps)
 
       h = Graf.degree_histo2d(g)
       assert h == %{{9, 9} => 10}
-      assert Histo2D.homogeneous(h)
+      assert {:homo, {9, 9}} == Histo2D.homogeneous(h)
     end
   end
 
@@ -175,7 +176,7 @@ defmodule Exa.Graf.GrafBuildTest do
       assert not Graf.tree?(g)
       assert MapSet.new(1..12) == Graf.reachable(g, 1)
       assert MapSet.new(1..12) == Graf.reachable(g, 7)
-      assert %{1 => Range.to_list(1..12)} == Graf.components(g)
+      assert %{1 => Range.to_list(1..12)} == Mol.sort(Graf.components(g))
     end
   end
 
@@ -216,7 +217,7 @@ defmodule Exa.Graf.GrafBuildTest do
   defp render(g, result \\ nil) do
     h1in = g |> Graf.degree_histo1d(:in) |> Histo1D.to_list()
     h1out = g |> Graf.degree_histo1d(:out) |> Histo1D.to_list()
-    h1inout = g |> Graf.degree_histo1d(:inout) |> Histo1D.to_list()
+    h1inout = g |> Graf.degree_histo1d(:in_out) |> Histo1D.to_list()
     h2inout = g |> Graf.degree_histo2d() |> Histo2D.to_list()
 
     case Graf.to_adj_file(g, @out_dir) do

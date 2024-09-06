@@ -5,6 +5,12 @@ defmodule Exa.Graf.GrafTest do
 
   import Exa.Graf.Graf
 
+  alias Exa.Std.Mol
+
+  @in_dir Path.join(["test", "input", "graf", "adj"])
+
+  defp adj_file(name), do: Exa.File.join(@in_dir, name, @filetype_adj)
+
   # add ----------
 
   test "add vert" do
@@ -174,7 +180,7 @@ defmodule Exa.Graf.GrafTest do
       assert MapSet.new([1, 2, 3, 4]) == reachable(g, 1)
       assert MapSet.new([3, 4, 5]) == reachable(g, 5)
       assert MapSet.new([1, 3, 4, 5]) == reachable(g, 4, :in)
-      assert MapSet.new([1, 3, 4, 5]) == reachable(g, 3, :inout)
+      assert MapSet.new([1, 3, 4, 5]) == reachable(g, 3, :in_out)
       assert connected?(g)
       assert tree?(g)
 
@@ -202,8 +208,59 @@ defmodule Exa.Graf.GrafTest do
       assert MapSet.new([4, 5, 6]) == reachable(g, 5, :in)
       comps = components(g)
       assert 3 = map_size(comps)
-      assert %{1 => [1], 2 => [2, 3], 4 => [4, 5, 6]} == comps
+      assert %{1 => [1], 2 => [2, 3], 4 => [4, 5, 6]} == Mol.sort(comps)
     end)
+  end
+
+  test "reverse" do
+    for tag <- [:adj, :dig] do
+      g = new(tag, "cyc3") |> add([{1, 2}, {2, 3}, {3, 1}, {1, 1}])
+      rev = reverse(g)
+      assert "cyc3_rev" == name(rev) 
+      assert [1,2,3] == rev |> verts() |> Enum.sort()
+      assert [{1,1}, {1,3}, {2,1}, {3,2}] == rev |> edges() |> Enum.sort()
+    end
+  end
+
+  test "iso" do
+    for nhop <- [0, 1] do
+      # build 3-cycle, with self-loops on different vertices
+      g1 = new(:adj, "iso1") |> add([{1, 2}, {2, 3}, {3, 1}, {1, 1}])
+      h1 = hash(g1, nhop)
+
+      g2 = new(:adj, "iso2") |> add([{1, 2}, {2, 3}, {3, 1}, {2, 2}])
+      h2 = hash(g2, nhop)
+
+      g3 = new(:adj, "iso3") |> add([{1, 2}, {2, 3}, {3, 1}, {3, 3}])
+      h3 = hash(g3, nhop)
+
+      assert h1 == h2
+      assert h2 == h3
+      assert h3 == h1
+      assert :undecided = isomorphic?(g1, g2)
+      assert :undecided = isomorphic?(g2, g3)
+      assert :undecided = isomorphic?(g3, g1)
+    end
+
+    # try two versions of the Petersen graph
+    # with a self-loop on different verts
+    peter = "petersen" |> adj_file() |> from_adj_file()
+    pA = add(peter, {1, 1})
+    pB = add(peter, {5, 5})
+    assert :undecided == isomorphic?(pA, pB)
+
+    retep = reverse(peter)
+    assert :undecided == isomorphic?(peter, retep)
+
+    # first example where the 0,1 hop hashes are different
+    # 4-cycle with 2 handles, one in reversed direction
+    cychan = new(:adj, "cychan") |> add([{1,2},{2,3},{3,4},{4,1},{4,5}, {5,1}])
+    cychanA = add(cychan, [{3,6}, {6,2}])
+    cychanB = add(cychan, [{6,3}, {2,6}])
+
+    assert hash(cychanA, 0) == hash(cychanB, 0)
+    assert hash(cychanA, 1) != hash(cychanB, 1)
+    assert not isomorphic?(cychanA, cychanB)
   end
 
   # join ----------

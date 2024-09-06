@@ -125,20 +125,33 @@ defmodule Exa.Graf.Types do
   @typedoc """
   Degree is the count of edges for a vertex.
 
-  Depending on the adjacency type:
-  - `:in`: number of incoming edges (for dst vertex)
-  - `:out`: number of outgoing edges (for src vertex)
-  - `:inout`: combined degree in+out for all incident edges
+  Depending on the adjacency type, 
+  the degree is a scalar, pair or triple:
+  - `:in`: number of incoming edges
+  - `:out`: number of outgoing edges
+  - `:in_out`: degrees of incoming and outgoing edges
+  - `:in_self_out`: degrees of incoming edges, self-loop, 
+     and outgoing edges
+
+  The counts for `:in`, `:out` and `in_out` 
+  will include the vertex itself if it has a self loop. 
+  The _in/out_ counts for `:in_self_out`
+  do not include any contribution from self-loop.
   """
   @type degree() :: E.count()
 
   @typedoc """
   Type of adjacency neighborhood:
-  - `in` incoming edges and upstream neighbors
-  - `out` outgoing edges and downstream neighbors
-  - `inout` combined incident edges and all adjacent neighbors
+  - `:in` incoming edges and upstream neighbors
+  - `:out` outgoing edges and downstream neighbors
+  - `:in_out` combined incident edges and all adjacent neighbors
+  - `:in_self_out` 
+
+  A vertex is always self-adjacent (reachable from itself), 
+  even if it does not have a self-loop,
+
   """
-  @type adjacency() :: :in | :out | :inout
+  @type adjacency() :: :in | :out | :in_out | :in_self_out
 
   @typedoc """
   The number of hops in a path through the graph.
@@ -230,12 +243,20 @@ defmodule Exa.Graf.Types do
   as the component id.
 
   A component index is a map from the component id
-  to the list of vertices for the component.
+  to the list of distinct vertices in the component.
+
+  See also:
+  - `Exa.Std.Mol.sort/1` to sort the component ids
+  - `Exa.Std.Mos.from_mol/1 to convert to vertex sets
   """
-  @type components() :: %{vert() => verts()}
+  @type components() :: Exa.Std.Mol.mol(vert(), vert())
 
   # hash ----------
 
-  @typedoc "A hash value for a graph object."
-  @type ghash() :: binary()
+  @typedoc """
+  A hash value for a graph object.
+
+  The hash will be a SHA256 binary converted to an unsigned integer.
+  """
+  @type hash() :: non_neg_integer()
 end

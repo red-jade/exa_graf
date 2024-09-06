@@ -72,73 +72,102 @@ defmodule Exa.Graf.Dig do
   def edges({:dig, _, dig}), do: dig |> :digraph.edges() |> eids(dig)
 
   @impl true
-  def vert?({:dig, _, dig}, i), do: do_vert?(dig, i)
+  def vert?({:dig, _, dig}, i), do: do_vert?(dig, vmake(i))
 
-  @spec do_vert?(:digraph.graph(), G.vert()) :: bool()
-  defp do_vert?(dig, i) do
-    # yes, should use !! here, but this is clearer
-    case :digraph.vertex(dig, vmake(i)) do
+  @spec do_vert?(:digraph.graph(), :digraph.vertex()) :: bool()
+  defp do_vert?(dig, iv) do
+    # yes, should use !! here for falsey, but this is clearer
+    case :digraph.vertex(dig, iv) do
       false -> false
       _ -> true
     end
   end
 
   @impl true
-  def edge?({:dig, _, dig}, e), do: do_edge?(dig, e)
+  def edge?({:dig, _, dig}, {i, j}), do: do_edge?(dig, vmake(i), vmake(j))
 
-  @spec do_edge?(:digraph.graph(), G.edge()) :: bool()
-  defp do_edge?(dig, {i, j}) do
-    vmake(j) in :digraph.out_neighbours(dig, vmake(i))
+  @spec do_edge?(:digraph.graph(), :digraph.vertex(), :digraph.vertex()) :: bool()
+  defp do_edge?(dig, iv, jv), do: jv in :digraph.out_neighbours(dig, iv)
+
+  @impl true
+  def reverse({:dig, name, _dig} = g) do
+    # TODO - copy cyclicity
+    new(:dig, name <> "_rev")
+    |> add(verts(g))
+    |> add(Enum.map(edges(g), fn {i, j} -> {j, i} end))
   end
 
   @impl true
 
   def degree({:dig, _, dig}, i, :in) when is_vert(i) do
-    if do_vert?(dig, i) do
-      {i, :digraph.in_degree(dig, vmake(i))}
+    iv = vmake(i)
+
+    if do_vert?(dig, iv) do
+      {i, :digraph.in_degree(dig, iv)}
     else
       {:error, "Missing vertex #{i}"}
     end
   end
 
   def degree({:dig, _, dig}, i, :out) when is_vert(i) do
-    if do_vert?(dig, i) do
-      {i, :digraph.out_degree(dig, vmake(i))}
+    iv = vmake(i)
+
+    if do_vert?(dig, iv) do
+      {i, :digraph.out_degree(dig, iv)}
     else
       {:error, "Missing vertex #{i}"}
     end
   end
 
-  def degree({:dig, _, dig}, i, :inout) when is_vert(i) do
-    if do_vert?(dig, i) do
-      iv = vmake(i)
+  def degree({:dig, _, dig}, i, :in_out) when is_vert(i) do
+    iv = vmake(i)
+
+    if do_vert?(dig, iv) do
       {i, :digraph.in_degree(dig, iv), :digraph.out_degree(dig, iv)}
     else
       {:error, "Missing vertex #{i}"}
     end
   end
 
+  def degree({:dig, _, dig}, i, :in_self_out) when is_vert(i) do
+    iv = vmake(i)
+    indeg = :digraph.in_degree(dig, iv)
+    outs = :digraph.out_neighbours(dig, iv)
+    outdeg = length(outs)
+
+    cond do
+      not do_vert?(dig, iv) -> {:error, "Missing vertex #{i}"}
+      iv in outs -> {i, indeg - 1, 1, outdeg - 1}
+      true -> {i, indeg, 0, outdeg}
+    end
+  end
+
   @impl true
 
   def neighborhood({:dig, _, dig}, i, :in) when is_vert(i) do
-    if do_vert?(dig, i) do
-      {i, vids(:digraph.in_neighbours(dig, vmake(i)))}
+    iv = vmake(i)
+
+    if do_vert?(dig, iv) do
+      {i, vids(:digraph.in_neighbours(dig, iv))}
     else
       {:error, "Missing vertex #{i}"}
     end
   end
 
   def neighborhood({:dig, _, dig}, i, :out) when is_vert(i) do
-    if do_vert?(dig, i) do
-      {i, vids(:digraph.out_neighbours(dig, vmake(i)))}
+    iv = vmake(i)
+
+    if do_vert?(dig, iv) do
+      {i, vids(:digraph.out_neighbours(dig, iv))}
     else
       {:error, "Missing vertex #{i}"}
     end
   end
 
   def neighborhood({:dig, _, dig}, i, :inout) when is_vert(i) do
-    if do_vert?(dig, i) do
-      iv = vmake(i)
+    iv = vmake(i)
+
+    if do_vert?(dig, iv) do
       {i, vids(:digraph.in_neighbours(dig, iv)), vids(:digraph.out_neighbours(dig, iv))}
     else
       {:error, "Missing vertex #{i}"}
@@ -162,11 +191,14 @@ defmodule Exa.Graf.Dig do
   end
 
   defp do_add(dig, {i, j} = e) when is_vert(i) and is_vert(j) do
-    if do_edge?(dig, e) do
+    iv = vmake(i)
+    jv = vmake(j)
+
+    if do_edge?(dig, iv, jv) do
       # add existing edge not an error
       :ok
     else
-      case :digraph.add_edge(dig, vmake(i), vmake(j)) do
+      case :digraph.add_edge(dig, iv, jv) do
         [:"$e" | _eid] ->
           :ok
 
@@ -262,13 +294,13 @@ defmodule Exa.Graf.Dig do
     |> :digraph_utils.components()
     |> Enum.reduce(%{}, fn vdigs, comps ->
       verts = vids(vdigs)
-      Map.put(comps, Enum.min(verts), Enum.sort(verts))
+      Map.put(comps, Enum.min(verts), verts)
     end)
   end
 
   @impl true
 
-  def reachable(g, i, :inout, nhop) do
+  def reachable(g, i, adjy, nhop) when adjy in [:in_out, :in_self_out] do
     # faster way to do this when there is lots of overlap (cyclicity)
     MapSet.union(reachable(g, i, :in, nhop), reachable(g, i, :out, nhop))
   end

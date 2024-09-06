@@ -30,8 +30,10 @@ defmodule Exa.Graf.Graf do
   alias Exa.Graf.Types, as: G
 
   alias Exa.Std.HistoTypes, as: H
+  alias Exa.Std.Histo
   alias Exa.Std.Histo1D
   alias Exa.Std.Histo2D
+  alias Exa.Std.Histo3D
   alias Exa.Std.Tidal
 
   alias Exa.Graf.Adj
@@ -89,6 +91,9 @@ defmodule Exa.Graf.Graf do
   def delete(g, gelem) when is_graph(g), do: dispatch(@disp, g, :delete, [gelem])
 
   @impl true
+  def reverse(g) when is_graph(g), do: dispatch(@disp, g, :reverse)
+
+  @impl true
   def degree(g, i, adjy) when is_graph(g), do: dispatch(@disp, g, :degree, [i, adjy])
 
   @impl true
@@ -116,9 +121,13 @@ defmodule Exa.Graf.Graf do
     tag |> new(gname, cyc) |> add(glist)
   end
 
+  @doc "Get the tag type of a graph."
+  @spec tag(G.graph()) :: G.gname()
+  def tag(g) when is_graph(g), do: elem(g, 0)
+
   @doc "Get the name of a graph."
   @spec name(G.graph()) :: G.gname()
-  def name(g) when is_gtype(elem(g, 0)), do: elem(g, 1)
+  def name(g) when is_graph(g), do: elem(g, 1)
 
   @doc """
   Change the name of a graph.
@@ -157,23 +166,38 @@ defmodule Exa.Graf.Graf do
 
   The graph comprising one isolated vertex is connected,
   because there is exactly one component.
+  The isolated vertex may or may not have a self loop.
   """
   @spec connected?(G.graph()) :: bool()
   def connected?(g) when is_graph(g) do
-    iso_fun = fn i -> classify(g, i) == :isolated end
-    not Enum.any?(verts(g), iso_fun) and ncomp(g) == 1
+    case nvert(g) do
+      0 -> false
+      1 -> true
+      _ -> ncomp(g) == 1
+    end
   end
 
   @doc "Get the number of weakly connected components."
   @spec ncomp(G.graph()) :: E.count()
   def ncomp(g) when is_graph(g), do: g |> components() |> map_size()
 
-  @doc "Get the isolated vertices that have no incident edges."
+  @doc """
+  Get the isolated vertices that have no incident edges and no self-edge.
+  """
   @spec verts_isolated(G.graph()) :: G.verts()
   def verts_isolated(g) when is_graph(g) do
-    iso_fun = fn i -> classify(g, i) == :isolated end
-    Enum.filter(verts(g), iso_fun)
+    Enum.filter(verts(g), fn i -> degree(g, i, :in_out) == {i, 0, 0} end)
   end
+
+  @doc "Get the count of self-edges."
+  @spec nself(G.graph()) :: E.count()
+  def nself(g) do
+    Enum.reduce(verts(g), 0, fn i, n -> if edge?(g, {i, i}), do: n + 1, else: n end)
+  end
+
+  @doc "Test if there are any self loops."
+  @spec self?(G.graph()) :: bool()
+  def self?(g), do: Enum.any?(verts(g), fn i -> edge?(g, {i, i}) end)
 
   @doc """
   Classify a vertex. 
@@ -195,21 +219,27 @@ defmodule Exa.Graf.Graf do
   """
   @spec classify(G.graph(), G.vert()) :: G.vert_class() | {:error, any()}
   def classify(g, i) do
-    self? = edge?(g, {i, i})
-
-    case degree(g, i, :inout) do
+    case degree(g, i, :in_self_out) do
       {:error, _} = err -> err
-      {_i, 0, 0} -> :isolated
-      {_i, _, 0} -> :sink
-      {_i, 0, _} -> :source
-      {_i, 1, 1} when self? -> :self_isolated
-      {_i, 1, 1} -> :linear
-      {_i, _, 1} when self? -> :self_sink
-      {_i, 1, _} when self? -> :self_source
-      {_i, 2, 2} when self? -> :self_linear
+      {_i, 0, 0, 0} -> :isolated
+      {_i, _, 0, 0} -> :sink
+      {_i, 0, 0, _} -> :source
+      {_i, 1, 0, 1} -> :linear
+      {_i, 0, 1, 0} -> :self_isolated
+      {_i, _, 1, 0} -> :self_sink
+      {_i, 0, 1, _} -> :self_source
+      {_i, 1, 1, 1} -> :self_linear
       _ -> :complex
     end
   end
+
+  @doc """
+  Test if a vertex has any edges connected to other vertices.
+
+  Equivalent to the classification being `:isolated` or `:self-isoalted.
+  """
+  @spec isolated?(G.graph(), G.vert()) :: bool()
+  def isolated?(g, i), do: classify(g, i) in [:isolated, :self_isolated]
 
   @doc "Test if a graph is a weakly connected tree."
   @spec tree?(G.graph()) :: bool()
@@ -361,7 +391,11 @@ defmodule Exa.Graf.Graf do
   The kind of degree is determined by the adjacency argument:
   - `:in` in degree
   - `:out` out degree
-  - `:inout` total degree (in+out)
+  - `:in_out` total degree (in+out) including self-loops
+  - `:in_self_out` total degree (in+out) ignoring self-loops
+
+  If there are no self-loops in the graph, 
+  the last two adjacency options will give the same result.
 
   Use `Exa.Std.Histo1D.homogeneous/1` to test for univalent graph
   (a graph where every vertex has the same degree).
@@ -375,48 +409,54 @@ defmodule Exa.Graf.Graf do
     end)
   end
 
-  def degree_histo1d(g, :inout) do
+  def degree_histo1d(g, :in_out) do
     Enum.reduce(verts(g), Histo1D.new(), fn i, h ->
-      {^i, indeg, outdeg} = degree(g, i, :inout)
+      {^i, indeg, outdeg} = degree(g, i, :in_out)
+      Histo1D.inc(h, indeg + outdeg)
+    end)
+  end
+
+  def degree_histo1d(g, :in_self_out) do
+    Enum.reduce(verts(g), Histo1D.new(), fn i, h ->
+      {^i, indeg, _, outdeg} = degree(g, i, :in_self_out)
       Histo1D.inc(h, indeg + outdeg)
     end)
   end
 
   @doc """
   Create a 2D histogram of the in and out vertex degrees.
+
+  The kind of degree is determined by the adjacency argument:
+  - `:in_out` (in,out) including self-loops
+  - `:in_self_out` (in,out) ignoring self-loops
+
+  If there are no self-loops in the graph, 
+  the two adjacency options will give the same result.
   """
-  @spec degree_histo2d(G.graph()) :: H.histo2d()
-  def degree_histo2d(g) do
+  @spec degree_histo2d(G.graph(), G.adjacency()) :: H.histo2d()
+  def degree_histo2d(g, adjy \\ :in_out)
+
+  def degree_histo2d(g, :in_out) do
     Enum.reduce(verts(g), Histo2D.new(), fn i, h ->
-      {^i, indeg, outdeg} = degree(g, i, :inout)
+      {^i, indeg, outdeg} = degree(g, i, :in_out)
       Histo2D.inc(h, {indeg, outdeg})
     end)
   end
 
-  @doc """
-  Create a hash of the graph.
+  def degree_histo2d(g, :in_self_out) do
+    Enum.reduce(verts(g), Histo2D.new(), fn i, h ->
+      {^i, indeg, _, outdeg} = degree(g, i, :in_self_out)
+      Histo2D.inc(h, {indeg, outdeg})
+    end)
+  end
 
-  The hash should reasonably discriminate graphs
-  by their topology, with a simple and relatively fast algorithm.
-  The hash ignores vertex and edge identifiers.
-
-  The hash can be used to reject a graph isomorphism test.
-  Graphs with different hashes cannot be isomorphic.
-  Graphs with the same hash may be isomorphic, or not,
-  they are _undecided._
-
-  The current approach is to generate the 2D histogram,
-  serialize to a list, sort, convert term to binary,
-  then hash using SHA-256.
-
-  The algorithm is not guaranteed to be stable across Erlang releases,
-  or even between different Erlang runtime instances.
-  The hash should not be distributed or persisted.
-  """
-  @spec hash(G.graph()) :: G.ghash()
-  def hash(g) do
-    bin = g |> degree_histo2d() |> Enum.sort() |> :erlang.term_to_binary([:local])
-    :crypto.hash(:sha256, bin)
+  @doc "Create a 3D histogram of the (in, self, out) vertex degrees."
+  @spec degree_histo3d(G.graph()) :: H.histo3d()
+  def degree_histo3d(g) do
+    Enum.reduce(verts(g), Histo3D.new(), fn i, h ->
+      {^i, indeg, self, outdeg} = degree(g, i, :in_self_out)
+      Histo3D.inc(h, {indeg, self, outdeg})
+    end)
   end
 
   @doc """
@@ -427,7 +467,7 @@ defmodule Exa.Graf.Graf do
   - digraph (dig) is stored in ETS (separate process)
     so `Task` asynch/await may be appropriate
   - adj is in-process, so a spawned task will
-    may incur an overhead for copying all graph data 
+    incur an overhead for copying all graph data 
   """
   @spec equal?(G.graph(), G.graph()) :: bool()
   def equal?(g1, g2) when is_graph(g1) and is_graph(g2) do
@@ -436,8 +476,8 @@ defmodule Exa.Graf.Graf do
         false
 
       :undecided ->
-        g1 |> verts() |> Enum.sort() == g2 |> verts() |> Enum.sort() and
-          g1 |> edges() |> Enum.sort() == g2 |> edges() |> Enum.sort()
+        g1 |> verts() |> MapSet.new() == g2 |> verts() |> MapSet.new() and
+          g1 |> edges() |> MapSet.new() == g2 |> edges() |> MapSet.new()
     end
   end
 
@@ -455,8 +495,8 @@ defmodule Exa.Graf.Graf do
   - number of edges
   - hashes of the graphs
 
-  Hashes are currently based on the sorted 
-  2D histogram of vertex in-out degrees.
+  Hashes are currently based on the  
+  3D histogram of vertex in-self-out degrees.
 
   This is a relatively quick check to excluded many non-isomorphic pairs.
   It does not do a full equality check.
@@ -465,13 +505,112 @@ defmodule Exa.Graf.Graf do
   def isomorphic?(g1, g2) when is_graph(g1) and is_graph(g2) do
     if nvert(g1) == nvert(g2) and
          nedge(g1) == nedge(g2) and
-         hash(g1) == hash(g2) do
-      # don't test for equality here
-      # keep equality check separate
+         hash(g1, 0) == hash(g2, 0) and
+         hash(g1, 1) == hash(g2, 1) do
+      # next steps not currently implemented:
+      # - no isomorphism permutation check
+      # - no test for equality here
       :undecided
     else
       false
     end
+  end
+
+  @doc """
+  Create a hash of the graph.
+
+  The hash should reasonably discriminate graphs
+  by their topology, with a simple and relatively fast algorithm.
+  The hash ignores vertex and edge identifiers.
+
+  The hash can be used to reject a graph isomorphism test.
+  Graphs with different hashes cannot be isomorphic.
+  Graphs with the same hash may be isomorphic, or not,
+  they are _undecided._
+
+  The basic approach is to:
+  - create a histogram from an encoding of 
+    local vertex neighborhood topologies
+  - convert the histogram term to binary
+  - hash the binary using SHA-256
+  - convert the hash to a 256-bit unsigned integer
+
+  There are two levels of encoding the local topology of a vertex,
+  based on the number of hops out from the vertex:
+  - 0 hop: 3-tuple of *in_self_out* degrees for the vertex itself
+  - 1 hop: 3-tuple encoding: 
+    - histogram of 3-tuple degrees for incoming neighbors 
+    - vertex 3-tuple degrees
+    - histogram of 3-tuple degrees for outgoing neighbors
+
+  As the number of hops increases, 
+  the work needed to calculate the hash rises dramatically.
+
+  The hashes for different hops are not comparable.
+  So hash equality tests are only valid for the same hop.
+
+  The salting of the crypto algorithm is not stable across Erlang releases,
+  or between different Erlang runtime instances,
+  including successive sessions on the same machine,
+  so the hash should not be distributed or persisted.
+  """
+  @spec hash(G.graph(), nhop :: 0 | 1) :: G.hash()
+
+  def hash(g, 0) do
+    g |> degree_histo3d() |> hash_term()
+  end
+
+  def hash(g, 1) do
+    verts = verts(g)
+
+    # build two indexes of neighborhood described as:
+    #   {in_neighbors, out_neighbors} exluding self loops
+    #   {in_degree, self_degree, out_degree}
+    {neigh_index, deg_index} =
+      Enum.reduce(verts, {%{}, %{}}, fn i, {nindex, dindex} ->
+        {^i, ins, self, outs} = neighborhood(g, i, :in_self_out)
+        self_deg = if is_nil(self), do: 0, else: 1
+
+        {
+          Map.put(nindex, i, {ins, outs}),
+          Map.put(dindex, i, {length(ins), self_deg, length(outs)})
+        }
+      end)
+
+    # build a histogram of vertex hashes
+    # calculated from on neighborhood tuple
+    # encoded using 3-degrees (in_self_out 3-tuples)
+    vhash_histo =
+      Enum.reduce(verts, Histo.new(), fn i, h ->
+        {ins, outs} = Map.fetch!(neigh_index, i)
+        in_histo3d = do_histo3d(ins, deg_index)
+        self_degree3 = Map.fetch!(deg_index, i)
+        out_histo3d = do_histo3d(outs, deg_index)
+        vdata = {in_histo3d, self_degree3, out_histo3d}
+        vhash = hash_term(vdata)
+        Histo.inc(h, vhash)
+      end)
+
+    # finally, hash the vertex hash histogram
+    hash_term(vhash_histo)
+  end
+
+  # index of vertex id to 3-degree tuple (in_self_out)
+  @typep degree_index3() :: %{G.vert() => {G.degree(), 0 | 1, G.degree()}}
+
+  # build a 3D histogram from indexed 3-degrees (in_self_out)
+  @spec do_histo3d(G.verts(), degree_index3()) :: H.histo3d()
+  defp do_histo3d(verts, deg_index) do
+    Enum.reduce(verts, Histo3D.new(), fn i, h ->
+      Histo3D.inc(h, Map.fetch!(deg_index, i))
+    end)
+  end
+
+  # hash any term to produce a 256-bit unsigned integer
+  @spec hash_term(any()) :: G.hash()
+  defp hash_term(term) do
+    <<i::256>> = :crypto.hash(:sha256, :erlang.term_to_binary(term, [:local]))
+    i
   end
 
   # --------

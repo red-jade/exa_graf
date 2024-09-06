@@ -10,7 +10,8 @@ defmodule Exa.Graf.DotReaderTest do
 
   import Exa.Graf.DotReader
 
-  @in_dir ["test", "input", "graf", "dot"]
+  @in_dir Path.join(["test", "input", "graf", "dot"])
+  @out_dir Path.join(["test", "output", "graf", "adj"])
 
   @in_files ["abcd", "squares", "petersen"]
 
@@ -79,10 +80,11 @@ defmodule Exa.Graf.DotReaderTest do
 
   test "dot input" do
     for file <- @in_files do
-      {_graph, _gattrs} = file |> in_file() |> from_dot_file()
+      {graph, _gattrs} = file |> in_file() |> from_dot_file()
       #     assert graph != :error
       # IO.inspect(graph, label: "graph ")
       # IO.inspect(gattrs, label: "attrs")
+      Graf.to_adj_file(graph, @out_dir)
     end
   end
 
@@ -90,7 +92,7 @@ defmodule Exa.Graf.DotReaderTest do
     {peter, _gattrs} = "petersen" |> in_file() |> from_dot_file()
     h = Graf.degree_histo2d(peter)
     assert %{{3, 3} => 10} == h
-    assert Histo2D.homogeneous(h)
+    assert {:homo, {3, 3}} == Histo2D.homogeneous(h)
 
     for fmt <- [:adj, :dig] do
       g = Graf.convert(peter, fmt)

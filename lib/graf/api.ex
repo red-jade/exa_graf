@@ -84,30 +84,46 @@ defmodule Exa.Graf.API do
   @callback delete(G.graph(), G.gelem()) :: G.graph() | {:error, any()}
 
   @doc """
+  Reverse a graph. 
+
+  Maintain all vertices, but reverse the direction of every edge.
+
+  The name of the output has `"_rev"` appended to the input name.
+  """
+  @callback reverse(G.graph()) :: G.graph()
+
+  @doc """
   Get the degree for a vertex, given an adjacency relationship.
+
+  The vertex id is the first element of the result tuple.
+
   Returns an error if the vertex does not exist.
   """
   @callback degree(G.graph(), G.vert(), G.adjacency()) ::
               {G.vert(), n_in_or_out :: G.degree()}
               | {G.vert(), n_in :: G.degree(), n_out :: G.degree()}
+              | {G.vert(), n_in :: G.degree(), self :: 0 | 1, n_out :: G.degree()}
               | {:error, any()}
 
   @doc """
   Get the neighbors of a vertex, given an adjacency relationship.
+
+  The vertex id is the first element of the result tuple.
 
   Returns an error if the vertex does not exist.
   """
   @callback neighborhood(G.graph(), G.vert(), G.adjacency()) ::
               {G.vert(), in_or_out :: G.verts()}
               | {G.vert(), v_in :: G.verts(), v_out :: G.verts()}
+              | {G.vert(), v_in :: G.verts(), self :: nil | G.vert(), v_out :: G.verts()}
               | {:error, any()}
 
   @doc """
   Get the weakly connected components of the graph
   (undirected connectivity).
 
-  Returns an index of components:
-  a map of component id to set of vertices in the component.
+  Returns an MoL index of components:
+  a map of component id to list of distinct vertices in the component.
 
   We choose the component id to be the minimum vertex id in the component.
 
@@ -121,15 +137,16 @@ defmodule Exa.Graf.API do
 
   @doc """
   Get the set of vertices reachable from the given vertex
-  in a certain number of steps (which may be `:infinity`).
+  in a certain number of edge steps (which may be `:infinity`).
 
   The adjacency argument means:
   - `:in` upstream incoming edges, 
      the set _reaching_ to this vertex
   - `:out` downstream outgoing edges,
      the set _reachable_ from this vertex
-  - `:inout` both upstream and downstream reachability,
+  - `:in_out` both upstream and downstream reachability,
      as if the graph was undirected
+  - `:in_self_out` - same as `:in_out`
 
   A vertex is considered reaching/reachable itself,
   even if it does not have a self-loop edge. 
