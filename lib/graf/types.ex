@@ -127,10 +127,10 @@ defmodule Exa.Graf.Types do
 
   Depending on the adjacency type, 
   the degree is a scalar, pair or triple:
-  - `:in`: number of incoming edges
-  - `:out`: number of outgoing edges
-  - `:in_out`: degrees of incoming and outgoing edges
-  - `:in_self_out`: degrees of incoming edges, self-loop, 
+  - `:in` number of incoming edges
+  - `:out` number of outgoing edges
+  - `:in_out` degrees of incoming and outgoing edges
+  - `:in_self_out` degrees of incoming edges, self-loop, 
      and outgoing edges
 
   The counts for `:in`, `:out` and `in_out` 
@@ -145,7 +145,7 @@ defmodule Exa.Graf.Types do
   - `:in` incoming edges and upstream neighbors
   - `:out` outgoing edges and downstream neighbors
   - `:in_out` combined incident edges and all adjacent neighbors
-  - `:in_self_out` 
+  - `:in_self_out` all adjacency, but separate self-loop 
 
   A vertex is always self-adjacent (reachable from itself), 
   even if it does not have a self-loop,
@@ -247,7 +247,7 @@ defmodule Exa.Graf.Types do
 
   See also:
   - `Exa.Std.Mol.sort/1` to sort the component ids
-  - `Exa.Std.Mos.from_mol/1 to convert to vertex sets
+  - `Exa.Std.Mos.from_mol/1` to convert to vertex sets
   """
   @type components() :: Exa.Std.Mol.mol(vert(), vert())
 

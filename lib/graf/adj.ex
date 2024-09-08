@@ -134,7 +134,7 @@ defmodule Exa.Graf.Adj do
   end
 
   defp do_del(adjs, r) when is_range(r) do
-    Enum.reduce(r, adjs, &do_del(&1, &1))
+    Enum.reduce(r, adjs, &do_del(&2, &1))
   end
 
   defp do_del({inadj, outadj}, {src, dst} = e) when is_edge(e) do

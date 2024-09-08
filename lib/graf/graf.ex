@@ -259,7 +259,7 @@ defmodule Exa.Graf.Graf do
   @doc """
   Test if a vertex has any edges connected to other vertices.
 
-  Equivalent to the classification being `:isolated` or `:self-isoalted.
+  Equivalent to the classification being `:isolated` or `:self-isoalted`.
   """
   @spec isolated?(G.graph(), G.vert()) :: bool()
   def isolated?(g, i), do: classify(g, i) in [:isolated, :self_isolated]
