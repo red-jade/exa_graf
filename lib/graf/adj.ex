@@ -196,23 +196,23 @@ defmodule Exa.Graf.Adj do
   end
 
   def degree({:adj, _, {inadj, _}}, i, :in) when is_vert(i) do
-    {i, Mos.size(inadj, i)}
+    Mos.size(inadj, i)
   end
 
   def degree({:adj, _, {_, outadj}}, i, :out) when is_vert(i) do
-    {i, Mos.size(outadj, i)}
+    Mos.size(outadj, i)
   end
 
   def degree({:adj, _, {inadj, outadj}}, i, :in_out) when is_vert(i) do
-    {i, Mos.size(inadj, i), Mos.size(outadj, i)}
+    {Mos.size(inadj, i), Mos.size(outadj, i)}
   end
 
   def degree({:adj, _, {inadj, outadj}}, i, :in_self_out) when is_vert(i) do
     # test for self edge
     if Mos.member?(outadj, i, i) do
-      {i, Mos.size(inadj, i) - 1, 1, Mos.size(outadj, i) - 1}
+      {Mos.size(inadj, i) - 1, 1, Mos.size(outadj, i) - 1}
     else
-      {i, Mos.size(inadj, i), 0, Mos.size(outadj, i)}
+      {Mos.size(inadj, i), 0, Mos.size(outadj, i)}
     end
   end
 
@@ -223,16 +223,15 @@ defmodule Exa.Graf.Adj do
   end
 
   def neighborhood({:adj, _, {inadj, _}}, i, :in) when is_vert(i) do
-    {i, inadj |> Mos.get(i) |> MapSet.to_list()}
+    inadj |> Mos.get(i) |> MapSet.to_list()
   end
 
   def neighborhood({:adj, _, {_, outadj}}, i, :out) when is_vert(i) do
-    {i, outadj |> Mos.get(i) |> MapSet.to_list()}
+    outadj |> Mos.get(i) |> MapSet.to_list()
   end
 
   def neighborhood({:adj, _, {inadj, outadj}}, i, :in_out) when is_vert(i) do
     {
-      i,
       inadj |> Mos.get(i) |> MapSet.to_list(),
       outadj |> Mos.get(i) |> MapSet.to_list()
     }
@@ -242,14 +241,12 @@ defmodule Exa.Graf.Adj do
     # test for self edge
     if Mos.member?(outadj, i, i) do
       {
-        i,
         inadj |> Mos.get(i) |> MapSet.delete(i) |> MapSet.to_list(),
         i,
         outadj |> Mos.get(i) |> MapSet.delete(i) |> MapSet.to_list()
       }
     else
       {
-        i,
         inadj |> Mos.get(i) |> MapSet.to_list(),
         nil,
         outadj |> Mos.get(i) |> MapSet.to_list()

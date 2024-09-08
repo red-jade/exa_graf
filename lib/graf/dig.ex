@@ -103,7 +103,7 @@ defmodule Exa.Graf.Dig do
     iv = vmake(i)
 
     if do_vert?(dig, iv) do
-      {i, :digraph.in_degree(dig, iv)}
+      :digraph.in_degree(dig, iv)
     else
       {:error, "Missing vertex #{i}"}
     end
@@ -113,7 +113,7 @@ defmodule Exa.Graf.Dig do
     iv = vmake(i)
 
     if do_vert?(dig, iv) do
-      {i, :digraph.out_degree(dig, iv)}
+      :digraph.out_degree(dig, iv)
     else
       {:error, "Missing vertex #{i}"}
     end
@@ -123,7 +123,7 @@ defmodule Exa.Graf.Dig do
     iv = vmake(i)
 
     if do_vert?(dig, iv) do
-      {i, :digraph.in_degree(dig, iv), :digraph.out_degree(dig, iv)}
+      {:digraph.in_degree(dig, iv), :digraph.out_degree(dig, iv)}
     else
       {:error, "Missing vertex #{i}"}
     end
@@ -137,8 +137,8 @@ defmodule Exa.Graf.Dig do
 
     cond do
       not do_vert?(dig, iv) -> {:error, "Missing vertex #{i}"}
-      iv in outs -> {i, indeg - 1, 1, outdeg - 1}
-      true -> {i, indeg, 0, outdeg}
+      iv in outs -> {indeg - 1, 1, outdeg - 1}
+      true -> {indeg, 0, outdeg}
     end
   end
 
@@ -148,7 +148,7 @@ defmodule Exa.Graf.Dig do
     iv = vmake(i)
 
     if do_vert?(dig, iv) do
-      {i, vids(:digraph.in_neighbours(dig, iv))}
+      vids(:digraph.in_neighbours(dig, iv))
     else
       {:error, "Missing vertex #{i}"}
     end
@@ -158,17 +158,17 @@ defmodule Exa.Graf.Dig do
     iv = vmake(i)
 
     if do_vert?(dig, iv) do
-      {i, vids(:digraph.out_neighbours(dig, iv))}
+      vids(:digraph.out_neighbours(dig, iv))
     else
       {:error, "Missing vertex #{i}"}
     end
   end
 
-  def neighborhood({:dig, _, dig}, i, :inout) when is_vert(i) do
+  def neighborhood({:dig, _, dig}, i, :in_out) when is_vert(i) do
     iv = vmake(i)
 
     if do_vert?(dig, iv) do
-      {i, vids(:digraph.in_neighbours(dig, iv)), vids(:digraph.out_neighbours(dig, iv))}
+      {vids(:digraph.in_neighbours(dig, iv)), vids(:digraph.out_neighbours(dig, iv))}
     else
       {:error, "Missing vertex #{i}"}
     end

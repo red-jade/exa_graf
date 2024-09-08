@@ -263,6 +263,19 @@ defmodule Exa.Graf.GrafTest do
     assert not isomorphic?(cychanA, cychanB)
   end
 
+  test "homeomorphism" do
+    # loop and tail with different linear chains
+    lt1 = new(:adj, "lt1") |> add([{1,2},{2,3},{3,1}, {3,4},{4,5}, {5,6}])
+    lt2 = new(:adj, "lt2") |> add([{1,2},{2,3},{3,4},{4,1}, {4,5}, {5,6}])
+
+    assert degree_histo3d(lt1) == degree_histo3d(lt1) 
+    assert :undecided == homeomorphic?(lt1, lt2)
+
+    # two loops linked
+    ll  = new(:adj, "ll") |> add([{1,2},{2,3},{3,1}, {3,4}, {4,5}, {5,6}, {6,4}])
+    assert not homeomorphic?(lt1, ll)
+  end
+
   # join ----------
 
   test "join" do

@@ -186,7 +186,30 @@ defmodule Exa.Graf.Graf do
   """
   @spec verts_isolated(G.graph()) :: G.verts()
   def verts_isolated(g) when is_graph(g) do
-    Enum.filter(verts(g), fn i -> degree(g, i, :in_out) == {i, 0, 0} end)
+    Enum.filter(verts(g), fn i -> degree(g, i, :in_out) == {0, 0} end)
+  end
+
+  @doc """
+  Get the vertices as a contiguous range, starting at 1,
+  plus a sorted list of additional values after the end of the range.
+  """
+  @spec verts_rangelist(G.graph()) :: Tidal.range_list()
+  def verts_rangelist(g) when is_graph(g) do
+    g |> verts() |> Tidal.from_list() |> Tidal.to_range_list()
+  end
+
+  @doc "Get the minimum and maximum vertex ids."
+  @spec verts_minmax(G.graph()) :: :empty | {min :: G.vert(), max :: G.vert()}
+  def verts_minmax(g) when is_graph(g) do
+    case verts(g) do
+      [] ->
+        :empty
+
+      [v | vs] ->
+        Enum.reduce(vs, {v, v}, fn i, {vmin, vmax} ->
+          {min(vmin, i), max(vmax, i)}
+        end)
+    end
   end
 
   @doc "Get the count of self-edges."
@@ -221,14 +244,14 @@ defmodule Exa.Graf.Graf do
   def classify(g, i) do
     case degree(g, i, :in_self_out) do
       {:error, _} = err -> err
-      {_i, 0, 0, 0} -> :isolated
-      {_i, _, 0, 0} -> :sink
-      {_i, 0, 0, _} -> :source
-      {_i, 1, 0, 1} -> :linear
-      {_i, 0, 1, 0} -> :self_isolated
-      {_i, _, 1, 0} -> :self_sink
-      {_i, 0, 1, _} -> :self_source
-      {_i, 1, 1, 1} -> :self_linear
+      {0, 0, 0} -> :isolated
+      {_, 0, 0} -> :sink
+      {0, 0, _} -> :source
+      {1, 0, 1} -> :linear
+      {0, 1, 0} -> :self_isolated
+      {_, 1, 0} -> :self_sink
+      {0, 1, _} -> :self_source
+      {1, 1, 1} -> :self_linear
       _ -> :complex
     end
   end
@@ -352,10 +375,10 @@ defmodule Exa.Graf.Graf do
         g = if(edge?(g, {j, j}), do: g |> add({i, i}) |> delete({j, j}), else: g)
 
         # transfer dst inward edges 
-        g = g |> neighborhood(j, :in) |> elem(1) |> Enum.reduce(g, &add(&2, {&1, i}))
+        g = g |> neighborhood(j, :in) |> Enum.reduce(g, &add(&2, {&1, i}))
 
         # transfer dst outward edges
-        g = g |> neighborhood(j, :out) |> elem(1) |> Enum.reduce(g, &add(&2, {i, &1}))
+        g = g |> neighborhood(j, :out) |> Enum.reduce(g, &add(&2, {i, &1}))
 
         # deleting the dst node deletes all its edges
         delete(g, j)
@@ -363,25 +386,82 @@ defmodule Exa.Graf.Graf do
   end
 
   @doc """
-  Get the vertices as a contiguous range, starting at 1,
-  plus a sorted list of additional values after the end of the range.
+  Contract a linear node.
+
+  A linear node has exactly one incoming edge, 
+  one outgoing edge and no self-loop.
+
+  The node is removed, and the two edges are replaced by a
+  single edge from the incoming neighbor to the outgoing neighbor.
+
+  Contracting linear nodes does not change the 
+  topological structure of the graph.
+
+  If the input graph is simple (no self-loops)
+  then the output graph is also simple.
+
+  So there are two additional constraints on the new edge:
+  - not a duplicate of an existing edge
+  - not a self-loop
+
+  The topologies of two graphs can be compared 
+  by contracting all linear nodes and testing for isomorphism.
+  If the two contractions are isomorphic, 
+  then the original graphs are homeomorphic (topologically equivalent).
   """
-  @spec verts_rangelist(G.graph()) :: Tidal.range_list()
-  def verts_rangelist(g) when is_graph(g) do
-    g |> verts() |> Tidal.from_list() |> Tidal.to_range_list()
+  @spec contract_linear(G.graph(), G.vert()) :: G.graph() | {:error, any()}
+  def contract_linear(g, i) when is_graph(g) and is_vert(i) do
+    case neighborhood(g, i, :in_self_out) do
+      {[j], nil, [k]} -> 
+        cond do
+          j == k -> {:error, "Common vertex"}
+          edge?(g,{j,k}) -> {:error, "Duplicate edge"}
+          true -> g |> delete(i) |> add({j,k})
+        end
+      {:error, _}=err -> err
+      _ -> {:error, "Not linear"}
+    end
   end
 
-  @doc "Get the minimum and maximum vertex ids."
-  @spec verts_minmax(G.graph()) :: :empty | {min :: G.vert(), max :: G.vert()}
-  def verts_minmax(g) when is_graph(g) do
-    case verts(g) do
-      [] ->
-        :empty
+  @doc """
+  Contract all linear nodes.
 
-      [v | vs] ->
-        Enum.reduce(vs, {v, v}, fn i, {vmin, vmax} ->
-          {min(vmin, i), max(vmax, i)}
-        end)
+  Contracting linear nodes preserves topological structure,
+  so it is a _homeomorphism_ (topological isomorphism).
+
+  See `contract_linear/2`.
+  """
+  @spec contract_linears(G.graph()) :: G.graph()
+  def contract_linears(g) when is_graph(g) do
+    Enum.reduce(verts(g), g, fn i, g -> 
+         case contract_linear(g,i) do
+           {:error, _} -> g
+           new_g -> new_g
+         end
+       end)
+  end
+
+  @doc """
+  Compare two graphs for _homeomorphism_ (topological equivalence). 
+
+  Two graphs are _homeomorphic_ if their 
+  linear contractions are isomorphic.
+
+  Linear node contraction just reduces the count of
+  nodes with 3-degree (in_self_out) value `{1,0,1}`.
+  So two graphs are _not_ homeomorphic if their 
+  3D degree histograms differ outside the `{1,0,1}` bin.
+
+  Currently, the isomorphism test never returns `true`,
+  so the most positive result is `:undecided`.
+  """
+  @spec homeomorphic?(G.graph(), G.graph()) :: false | :undecided
+  def homeomorphic?(g1,g2) when is_graph(g1) and is_graph(g2) do
+    if g1 |> degree_histo3d() |> Map.delete({1,0,1}) != 
+       g2 |> degree_histo3d() |> Map.delete({1,0,1}) do
+      false
+    else
+      isomorphic?(contract_linears(g1), contract_linears(g2))
     end
   end
 
@@ -404,21 +484,20 @@ defmodule Exa.Graf.Graf do
 
   def degree_histo1d(g, adjy) when adjy in [:in, :out] do
     Enum.reduce(verts(g), Histo1D.new(), fn i, h ->
-      {^i, deg} = degree(g, i, adjy)
-      Histo1D.inc(h, deg)
+      Histo1D.inc(h, degree(g, i, adjy))
     end)
   end
 
   def degree_histo1d(g, :in_out) do
     Enum.reduce(verts(g), Histo1D.new(), fn i, h ->
-      {^i, indeg, outdeg} = degree(g, i, :in_out)
+      {indeg, outdeg} = degree(g, i, :in_out)
       Histo1D.inc(h, indeg + outdeg)
     end)
   end
 
   def degree_histo1d(g, :in_self_out) do
     Enum.reduce(verts(g), Histo1D.new(), fn i, h ->
-      {^i, indeg, _, outdeg} = degree(g, i, :in_self_out)
+      {indeg, _, outdeg} = degree(g, i, :in_self_out)
       Histo1D.inc(h, indeg + outdeg)
     end)
   end
@@ -438,14 +517,13 @@ defmodule Exa.Graf.Graf do
 
   def degree_histo2d(g, :in_out) do
     Enum.reduce(verts(g), Histo2D.new(), fn i, h ->
-      {^i, indeg, outdeg} = degree(g, i, :in_out)
-      Histo2D.inc(h, {indeg, outdeg})
+      Histo2D.inc(h, degree(g, i, :in_out))
     end)
   end
 
   def degree_histo2d(g, :in_self_out) do
     Enum.reduce(verts(g), Histo2D.new(), fn i, h ->
-      {^i, indeg, _, outdeg} = degree(g, i, :in_self_out)
+      {indeg, _, outdeg} = degree(g, i, :in_self_out)
       Histo2D.inc(h, {indeg, outdeg})
     end)
   end
@@ -454,8 +532,7 @@ defmodule Exa.Graf.Graf do
   @spec degree_histo3d(G.graph()) :: H.histo3d()
   def degree_histo3d(g) do
     Enum.reduce(verts(g), Histo3D.new(), fn i, h ->
-      {^i, indeg, self, outdeg} = degree(g, i, :in_self_out)
-      Histo3D.inc(h, {indeg, self, outdeg})
+      Histo3D.inc(h, degree(g, i, :in_self_out))
     end)
   end
 
@@ -568,7 +645,7 @@ defmodule Exa.Graf.Graf do
     #   {in_degree, self_degree, out_degree}
     {neigh_index, deg_index} =
       Enum.reduce(verts, {%{}, %{}}, fn i, {nindex, dindex} ->
-        {^i, ins, self, outs} = neighborhood(g, i, :in_self_out)
+        {ins, self, outs} = neighborhood(g, i, :in_self_out)
         self_deg = if is_nil(self), do: 0, else: 1
 
         {

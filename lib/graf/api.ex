@@ -95,27 +95,23 @@ defmodule Exa.Graf.API do
   @doc """
   Get the degree for a vertex, given an adjacency relationship.
 
-  The vertex id is the first element of the result tuple.
-
   Returns an error if the vertex does not exist.
   """
   @callback degree(G.graph(), G.vert(), G.adjacency()) ::
-              {G.vert(), n_in_or_out :: G.degree()}
-              | {G.vert(), n_in :: G.degree(), n_out :: G.degree()}
-              | {G.vert(), n_in :: G.degree(), self :: 0 | 1, n_out :: G.degree()}
+              n_in_or_out :: G.degree()
+              | {n_in :: G.degree(), n_out :: G.degree()}
+              | {n_in :: G.degree(), self :: 0 | 1, n_out :: G.degree()}
               | {:error, any()}
 
   @doc """
   Get the neighbors of a vertex, given an adjacency relationship.
 
-  The vertex id is the first element of the result tuple.
-
   Returns an error if the vertex does not exist.
   """
   @callback neighborhood(G.graph(), G.vert(), G.adjacency()) ::
-              {G.vert(), in_or_out :: G.verts()}
-              | {G.vert(), v_in :: G.verts(), v_out :: G.verts()}
-              | {G.vert(), v_in :: G.verts(), self :: nil | G.vert(), v_out :: G.verts()}
+              in_or_out :: G.verts()
+              | {v_in :: G.verts(), v_out :: G.verts()}
+              | {v_in :: G.verts(), self :: nil | G.vert(), v_out :: G.verts()}
               | {:error, any()}
 
   @doc """
