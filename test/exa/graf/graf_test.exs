@@ -58,6 +58,15 @@ defmodule Exa.Graf.GrafTest do
     )
   end
 
+  test "add chain" do
+    builder(
+      fn tag -> new(tag, "chain") |> add([{1, 2, 3, 1}]) end,
+      {:adj, "chain",
+       {%{1 => MapSet.new([3]), 2 => MapSet.new([1]), 3 => MapSet.new([2])},
+        %{1 => MapSet.new([2]), 2 => MapSet.new([3]), 3 => MapSet.new([1])}}}
+    )
+  end
+
   test "add adj" do
     builder(
       fn tag -> new(tag, "adj") |> add({1, [2, 3]}) |> add({2, [3]}) end,
@@ -125,6 +134,15 @@ defmodule Exa.Graf.GrafTest do
     )
   end
 
+  test "del chain" do
+    builder(
+      fn tag -> tri(tag) |> delete({1, 2, 3}) end,
+      {:adj, "tri",
+       {%{1 => MapSet.new([]), 2 => MapSet.new([]), 3 => MapSet.new([1])},
+        %{1 => MapSet.new([3]), 2 => MapSet.new([]), 3 => MapSet.new([])}}}
+    )
+  end
+
   test "del adj" do
     builder(
       fn tag -> tri(tag) |> delete({1, [2, 3]}) end,
@@ -159,7 +177,7 @@ defmodule Exa.Graf.GrafTest do
         new(tag, "class")
         |> add(1..7)
         # linear chain
-        |> add([{1, 2}, {2, 3}, {3, 4}, {4, 5}])
+        |> add({1, 2, 3, 4, 5})
         # two extra nodes on 2
         |> add([{6, 2}, {2, 7}])
         # self loops
@@ -214,24 +232,24 @@ defmodule Exa.Graf.GrafTest do
 
   test "reverse" do
     for tag <- [:adj, :dig] do
-      g = new(tag, "cyc3") |> add([{1, 2}, {2, 3}, {3, 1}, {1, 1}])
+      g = new(tag, "cyc3") |> add({1, 2, 3, 1, 1})
       rev = reverse(g)
-      assert "cyc3_rev" == name(rev) 
-      assert [1,2,3] == rev |> verts() |> Enum.sort()
-      assert [{1,1}, {1,3}, {2,1}, {3,2}] == rev |> edges() |> Enum.sort()
+      assert "cyc3_rev" == name(rev)
+      assert [1, 2, 3] == rev |> verts() |> Enum.sort()
+      assert [{1, 1}, {1, 3}, {2, 1}, {3, 2}] == rev |> edges() |> Enum.sort()
     end
   end
 
   test "iso" do
     for nhop <- [0, 1] do
       # build 3-cycle, with self-loops on different vertices
-      g1 = new(:adj, "iso1") |> add([{1, 2}, {2, 3}, {3, 1}, {1, 1}])
+      g1 = new(:adj, "iso1") |> add({1, 1, 2, 3, 1})
       h1 = hash(g1, nhop)
 
-      g2 = new(:adj, "iso2") |> add([{1, 2}, {2, 3}, {3, 1}, {2, 2}])
+      g2 = new(:adj, "iso2") |> add({1, 2, 2, 3, 1})
       h2 = hash(g2, nhop)
 
-      g3 = new(:adj, "iso3") |> add([{1, 2}, {2, 3}, {3, 1}, {3, 3}])
+      g3 = new(:adj, "iso3") |> add({1, 2, 3, 3, 1})
       h3 = hash(g3, nhop)
 
       assert h1 == h2
@@ -254,9 +272,9 @@ defmodule Exa.Graf.GrafTest do
 
     # first example where the 0,1 hop hashes are different
     # 4-cycle with 2 handles, one in reversed direction
-    cychan = new(:adj, "cychan") |> add([{1,2},{2,3},{3,4},{4,1},{4,5}, {5,1}])
-    cychanA = add(cychan, [{3,6}, {6,2}])
-    cychanB = add(cychan, [{6,3}, {2,6}])
+    cychan = new(:adj, "cychan") |> add([{1, 2, 3, 4, 1}, {4, 5}, {5, 1}])
+    cychanA = add(cychan, [{3, 6}, {6, 2}])
+    cychanB = add(cychan, [{6, 3}, {2, 6}])
 
     assert hash(cychanA, 0) == hash(cychanB, 0)
     assert hash(cychanA, 1) != hash(cychanB, 1)
@@ -265,14 +283,14 @@ defmodule Exa.Graf.GrafTest do
 
   test "homeomorphism" do
     # loop and tail with different linear chains
-    lt1 = new(:adj, "lt1") |> add([{1,2},{2,3},{3,1}, {3,4},{4,5}, {5,6}])
-    lt2 = new(:adj, "lt2") |> add([{1,2},{2,3},{3,4},{4,1}, {4,5}, {5,6}])
+    lt1 = new(:adj, "lt1") |> add([{1, 2, 3, 1}, {3, 4, 5, 6}])
+    lt2 = new(:adj, "lt2") |> add([{1, 2, 3, 4, 1}, {4, 5, 6}])
 
-    assert degree_histo3d(lt1) == degree_histo3d(lt1) 
+    assert degree_histo3d(lt1) == degree_histo3d(lt1)
     assert :undecided == homeomorphic?(lt1, lt2)
 
     # two loops linked
-    ll  = new(:adj, "ll") |> add([{1,2},{2,3},{3,1}, {3,4}, {4,5}, {5,6}, {6,4}])
+    ll = new(:adj, "ll") |> add([{1, 2, 3, 1}, {3, 4}, {4, 5, 6, 4}])
     assert not homeomorphic?(lt1, ll)
   end
 

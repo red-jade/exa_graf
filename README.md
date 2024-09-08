@@ -24,7 +24,7 @@ to the specific implementation.
 Conversion between different representations.
 
 A generic and flexible way to build graphs from
-vertices, vertex ranges, edges and adjacency lists.
+vertices, vertex ranges, edges, chains and adjacency lists.
 
 Graf data allows self-loops and cyclic graphs, but no multi-edges 
 (multiple edges between the same pair of vertices).
@@ -40,10 +40,14 @@ Functions to find:
 - connectedness and (weakly) connected components
 - reachability sets
 
-Build 1D and 2D histograms from vertex degrees.
-Use the 2D in-out adjacency histogram
+Build 1D, 2D and 3D histograms from vertex degrees.
+Use the 3D in-self-out adjacency histogram
 to create a topology hash for the graph,
 and use the hash for a simple isomorphism test.
+
+Contract edges and linear nodes.
+Test topological equivalence (homeomorphism) 
+by comparing full contractions of all linear edges.
 
 Relabelling of graphs to permute vertex identifiers.
 Combining graphs using _merge_ of vertices and edges,
@@ -94,6 +98,7 @@ Operations that mutate graphs are:
   - `delete/2`
   - `join/3` 1st argument only
   - `contract_edge/2`
+  - `contract_linear/2` and `contract_linears/1`
   
 Dig graphs should call `delete/1` to delete the graph resources
 stored in ETS. Deleting an adj graph is a no-op.
@@ -101,7 +106,7 @@ stored in ETS. Deleting an adj graph is a no-op.
 ## Building
 
 To bootstrap an `exa_xxx` library build, 
-you must run `mix deps.get` twice.
+you must update dependencies twice.
 
 ## EXA License
 

@@ -60,7 +60,7 @@ defmodule Exa.Graf.Adj do
   def add({:adj, gname, adjs}, gelem) do
     case do_add(adjs, gelem) do
       {:error, _} = err -> err
-      adjs -> {:adj, gname, adjs}
+      new_adjs -> {:adj, gname, new_adjs}
     end
   end
 
@@ -87,6 +87,15 @@ defmodule Exa.Graf.Adj do
       inadj |> Mos.touch(src) |> Mos.add(dst, src),
       outadj |> Mos.touch(dst) |> Mos.add(src, dst)
     }
+  end
+
+  defp do_add(adjs, chain) when is_chain(chain) do
+    1..(tuple_size(chain) - 1)
+    |> Enum.reduce({elem(chain, 0), adjs}, fn n, {i, adjs} ->
+      j = elem(chain, n)
+      {j, do_add(adjs, {i, j})}
+    end)
+    |> elem(1)
   end
 
   defp do_add(adjs, {src, []}), do: do_add(adjs, src)
@@ -119,7 +128,7 @@ defmodule Exa.Graf.Adj do
   def delete({:adj, gname, adjs}, gelem) do
     case do_del(adjs, gelem) do
       {:error, _} = err -> err
-      adjs -> {:adj, gname, adjs}
+      new_adjs -> {:adj, gname, new_adjs}
     end
   end
 
@@ -139,6 +148,15 @@ defmodule Exa.Graf.Adj do
 
   defp do_del({inadj, outadj}, {src, dst} = e) when is_edge(e) do
     {Mos.remove(inadj, dst, src), Mos.remove(outadj, src, dst)}
+  end
+
+  defp do_del(adjs, chain) when is_chain(chain) do
+     1..(tuple_size(chain) - 1)
+     |> Enum.reduce( {elem(chain, 0), adjs}, fn n, {i, adjs} ->
+      j = elem(chain, n)
+      {j, do_del(adjs, {i, j})}
+    end)
+     |> elem(1)
   end
 
   defp do_del(adjs, {_src, []}), do: adjs

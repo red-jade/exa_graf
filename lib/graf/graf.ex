@@ -412,14 +412,18 @@ defmodule Exa.Graf.Graf do
   @spec contract_linear(G.graph(), G.vert()) :: G.graph() | {:error, any()}
   def contract_linear(g, i) when is_graph(g) and is_vert(i) do
     case neighborhood(g, i, :in_self_out) do
-      {[j], nil, [k]} -> 
+      {[j], nil, [k]} ->
         cond do
           j == k -> {:error, "Common vertex"}
-          edge?(g,{j,k}) -> {:error, "Duplicate edge"}
-          true -> g |> delete(i) |> add({j,k})
+          edge?(g, {j, k}) -> {:error, "Duplicate edge"}
+          true -> g |> delete(i) |> add({j, k})
         end
-      {:error, _}=err -> err
-      _ -> {:error, "Not linear"}
+
+      {:error, _} = err ->
+        err
+
+      _ ->
+        {:error, "Not linear"}
     end
   end
 
@@ -433,12 +437,12 @@ defmodule Exa.Graf.Graf do
   """
   @spec contract_linears(G.graph()) :: G.graph()
   def contract_linears(g) when is_graph(g) do
-    Enum.reduce(verts(g), g, fn i, g -> 
-         case contract_linear(g,i) do
-           {:error, _} -> g
-           new_g -> new_g
-         end
-       end)
+    Enum.reduce(verts(g), g, fn i, g ->
+      case contract_linear(g, i) do
+        {:error, _} -> g
+        new_g -> new_g
+      end
+    end)
   end
 
   @doc """
@@ -456,9 +460,9 @@ defmodule Exa.Graf.Graf do
   so the most positive result is `:undecided`.
   """
   @spec homeomorphic?(G.graph(), G.graph()) :: false | :undecided
-  def homeomorphic?(g1,g2) when is_graph(g1) and is_graph(g2) do
-    if g1 |> degree_histo3d() |> Map.delete({1,0,1}) != 
-       g2 |> degree_histo3d() |> Map.delete({1,0,1}) do
+  def homeomorphic?(g1, g2) when is_graph(g1) and is_graph(g2) do
+    if g1 |> degree_histo3d() |> Map.delete({1, 0, 1}) !=
+         g2 |> degree_histo3d() |> Map.delete({1, 0, 1}) do
       false
     else
       isomorphic?(contract_linears(g1), contract_linears(g2))

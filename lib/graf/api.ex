@@ -50,6 +50,7 @@ defmodule Exa.Graf.API do
   - vertex
   - vertex range
   - edge
+  - chain of edges
   - out adjacency list
   - lists of the above
 
@@ -73,6 +74,7 @@ defmodule Exa.Graf.API do
   - vertex
   - vertex range
   - edge
+  - chain of edges
   - out adjacency list
   - lists of the above
 
@@ -98,7 +100,8 @@ defmodule Exa.Graf.API do
   Returns an error if the vertex does not exist.
   """
   @callback degree(G.graph(), G.vert(), G.adjacency()) ::
-              n_in_or_out :: G.degree()
+              n_in_or_out ::
+              G.degree()
               | {n_in :: G.degree(), n_out :: G.degree()}
               | {n_in :: G.degree(), self :: 0 | 1, n_out :: G.degree()}
               | {:error, any()}
@@ -109,7 +112,8 @@ defmodule Exa.Graf.API do
   Returns an error if the vertex does not exist.
   """
   @callback neighborhood(G.graph(), G.vert(), G.adjacency()) ::
-              in_or_out :: G.verts()
+              in_or_out ::
+              G.verts()
               | {v_in :: G.verts(), v_out :: G.verts()}
               | {v_in :: G.verts(), self :: nil | G.vert(), v_out :: G.verts()}
               | {:error, any()}

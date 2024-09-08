@@ -29,6 +29,11 @@ defmodule Exa.Graf.Types do
            when is_fix_tuple(e, 2) and
                   is_vert(elem(e, 0)) and is_vert(elem(e, 1))
 
+  @typedoc "A chain of edges is a tuple of vertices."
+  @type chain() :: tuple()
+
+  defguard is_chain(t) when is_tuple(t) and tuple_size(t) > 2
+
   @typedoc "List of edges."
   @type edges() :: [edge()]
 
@@ -56,10 +61,11 @@ defmodule Exa.Graf.Types do
   - vertex
   - vertex range
   - edge
+  - chain of edges
   - out adjacency list 
   - list of all of the above
   """
-  @type gelem() :: vert() | vseq() | edge() | adjlist() | glist()
+  @type gelem() :: vert() | vseq() | edge() | chain() | adjlist() | glist()
 
   @typedoc "List of graph elements."
   @type glist() :: [gelem()]

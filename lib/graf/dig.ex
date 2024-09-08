@@ -213,6 +213,13 @@ defmodule Exa.Graf.Dig do
     end
   end
 
+  defp do_add(dig, chain) when is_chain(chain) do
+    Exa.Tuple.reduce(chain, fn j, i ->
+      do_add(dig, {i, j})
+      j
+    end)
+  end
+
   defp do_add(dig, {src, []}), do: do_add(dig, src)
 
   defp do_add(dig, {src, dsts}) when is_list(dsts) do
@@ -266,8 +273,14 @@ defmodule Exa.Graf.Dig do
     end)
   end
 
+  defp do_del(dig, chain) when is_chain(chain) do
+    Exa.Tuple.reduce(chain, fn j, i ->
+      do_del(dig, {i, j})
+      j
+    end)
+  end
+
   defp do_del(dig, {src, dsts}) when is_list(dsts) do
-    # assume all dsts are verts
     Enum.each(dsts, fn dst -> do_del(dig, {src, dst}) end)
   end
 
