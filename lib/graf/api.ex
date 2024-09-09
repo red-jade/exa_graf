@@ -113,9 +113,9 @@ defmodule Exa.Graf.API do
   """
   @callback neighborhood(G.graph(), G.vert(), G.adjacency()) ::
               in_or_out ::
-              G.verts()
-              | {v_in :: G.verts(), v_out :: G.verts()}
-              | {v_in :: G.verts(), self :: nil | G.vert(), v_out :: G.verts()}
+              G.vset()
+              | {v_in :: G.vset(), v_out :: G.vset()}
+              | {v_in :: G.vset(), self :: nil | G.vert(), v_out :: G.vset()}
               | {:error, any()}
 
   @doc """
@@ -133,7 +133,7 @@ defmodule Exa.Graf.API do
   Isolated vertices appear as singleton sets,
   indexed by the vertex id.
   """
-  @callback components(G.graph()) :: G.components()
+  @callback components_weak(G.graph()) :: G.components()
 
   @doc """
   Get the set of vertices reachable from the given vertex

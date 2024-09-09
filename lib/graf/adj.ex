@@ -151,12 +151,12 @@ defmodule Exa.Graf.Adj do
   end
 
   defp do_del(adjs, chain) when is_chain(chain) do
-     1..(tuple_size(chain) - 1)
-     |> Enum.reduce( {elem(chain, 0), adjs}, fn n, {i, adjs} ->
+    1..(tuple_size(chain) - 1)
+    |> Enum.reduce({elem(chain, 0), adjs}, fn n, {i, adjs} ->
       j = elem(chain, n)
       {j, do_del(adjs, {i, j})}
     end)
-     |> elem(1)
+    |> elem(1)
   end
 
   defp do_del(adjs, {_src, []}), do: adjs
@@ -241,39 +241,28 @@ defmodule Exa.Graf.Adj do
   end
 
   def neighborhood({:adj, _, {inadj, _}}, i, :in) when is_vert(i) do
-    inadj |> Mos.get(i) |> MapSet.to_list()
+    Mos.get(inadj, i)
   end
 
   def neighborhood({:adj, _, {_, outadj}}, i, :out) when is_vert(i) do
-    outadj |> Mos.get(i) |> MapSet.to_list()
+    Mos.get(outadj, i)
   end
 
   def neighborhood({:adj, _, {inadj, outadj}}, i, :in_out) when is_vert(i) do
-    {
-      inadj |> Mos.get(i) |> MapSet.to_list(),
-      outadj |> Mos.get(i) |> MapSet.to_list()
-    }
+    {Mos.get(inadj, i), Mos.get(outadj, i)}
   end
 
   def neighborhood({:adj, _, {inadj, outadj}}, i, :in_self_out) when is_vert(i) do
     # test for self edge
     if Mos.member?(outadj, i, i) do
-      {
-        inadj |> Mos.get(i) |> MapSet.delete(i) |> MapSet.to_list(),
-        i,
-        outadj |> Mos.get(i) |> MapSet.delete(i) |> MapSet.to_list()
-      }
+      {inadj |> Mos.get(i) |> MapSet.delete(i), i, outadj |> Mos.get(i) |> MapSet.delete(i)}
     else
-      {
-        inadj |> Mos.get(i) |> MapSet.to_list(),
-        nil,
-        outadj |> Mos.get(i) |> MapSet.to_list()
-      }
+      {Mos.get(inadj, i), nil, Mos.get(outadj, i)}
     end
   end
 
   @impl true
-  def components({:adj, _, {_, outadj}}) do
+  def components_weak({:adj, _, {_, outadj}}) do
     # union find algorithm
     verts = Map.keys(outadj)
 

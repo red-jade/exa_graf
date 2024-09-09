@@ -101,8 +101,8 @@ defmodule Exa.Graf.Graf do
     do: dispatch(@disp, g, :neighborhood, [i, adjy])
 
   @impl true
-  def components(g) when is_graph(g),
-    do: dispatch(@disp, g, :components)
+  def components_weak(g) when is_graph(g),
+    do: dispatch(@disp, g, :components_weak)
 
   @impl true
   def reachable(g, i, adjy \\ :out, nhop \\ :infinity) when is_graph(g) and is_vert(i),
@@ -110,7 +110,7 @@ defmodule Exa.Graf.Graf do
 
   # -----------------------
   # generic implementations 
-  # not dispatched 
+  #     not dispatched 
   # -----------------------
 
   @doc """
@@ -168,18 +168,18 @@ defmodule Exa.Graf.Graf do
   because there is exactly one component.
   The isolated vertex may or may not have a self loop.
   """
-  @spec connected?(G.graph()) :: bool()
-  def connected?(g) when is_graph(g) do
+  @spec connected_weak?(G.graph()) :: bool()
+  def connected_weak?(g) when is_graph(g) do
     case nvert(g) do
       0 -> false
       1 -> true
-      _ -> ncomp(g) == 1
+      _ -> n_comp_weak(g) == 1
     end
   end
 
   @doc "Get the number of weakly connected components."
-  @spec ncomp(G.graph()) :: E.count()
-  def ncomp(g) when is_graph(g), do: g |> components() |> map_size()
+  @spec n_comp_weak(G.graph()) :: E.count()
+  def n_comp_weak(g) when is_graph(g), do: g |> components_weak() |> map_size()
 
   @doc """
   Get the isolated vertices that have no incident edges and no self-edge.
@@ -266,7 +266,9 @@ defmodule Exa.Graf.Graf do
 
   @doc "Test if a graph is a weakly connected tree."
   @spec tree?(G.graph()) :: bool()
-  def tree?(g) when is_graph(g), do: nedge(g) == nvert(g) - 1 and connected?(g)
+  def tree?(g) when is_graph(g) do
+    nedge(g) == nvert(g) - 1 and connected_weak?(g)
+  end
 
   @doc """
   Relabel a graph by applying a vertex mapper.
@@ -344,44 +346,98 @@ defmodule Exa.Graf.Graf do
   Contract an edge.
 
   Merge the two nodes at the ends of an edge.
-  The remaining node will have the vertex id of the src node.
-  The src node will have edges added 
-  for all in/out neighbors of the dst node.
+  The remaining node will have the minimum of the two vertex ids.
+  The min node will have edges added 
+  for all in/out neighbors of the max node.
   Any duplicated edges will be ignored.
-  The dst node and all its edges will be deleted.
+  The max node and all its edges will be deleted.
 
   If the target edge is a self-edge,
   then it will be deleted,
   but no other changes are made.
 
-  If the dst node had a self-edge, 
-  a self-edge will be added to the src node.
+  If the max node had a self-edge, 
+  a self-edge will be added to the min node.
 
   If the target edge does not exist, there is no effect,
   and the result will be the same as the input.
   Otherwise, the input graph will be modified.
   """
   @spec contract_edge(G.graph(), G.edge()) :: G.graph()
-  def contract_edge(g, {i, j} = e) do
+  def contract_edge(g, {src, dst} = e) do
     cond do
       not edge?(g, e) ->
         g
 
-      i == j ->
+      src == dst ->
         delete(g, e)
 
       true ->
-        # transfer any self-edge from dst to src
-        g = if(edge?(g, {j, j}), do: g |> add({i, i}) |> delete({j, j}), else: g)
+        {i, j} = if src < dst, do: e, else: {dst, src}
+        {ins, self, outs} = neighborhood(g, j, :in_self_out)
 
-        # transfer dst inward edges 
-        g = g |> neighborhood(j, :in) |> Enum.reduce(g, &add(&2, {&1, i}))
+        # transfer any self-edge 
+        g = if is_nil(self), do: g, else: g |> add({i, i}) |> delete({j, j})
 
-        # transfer dst outward edges
-        g = g |> neighborhood(j, :out) |> Enum.reduce(g, &add(&2, {i, &1}))
+        # transfer inward edges 
+        # transfer outward edges
+        # deleting the node deletes all its edges
+        g
+        |> add(Enum.map(ins, & {&1, i}))
+        |> add(Enum.map(outs, & {i, &1}))
+        |> delete(j)
+    end
+  end
 
-        # deleting the dst node deletes all its edges
-        delete(g, j)
+  @doc """
+  Contract a collection of distinct vertices onto a single vertex.
+  The vertices do not have to be linked by edges.
+
+  The remaining vertex will have the minimum of the vertex ids.
+
+  The minimum node will have edges added 
+  for all external neighbors of the node group,
+  plus the transfer of any self-edge.
+
+  Any duplicated edges will be ignored.
+  Any repeated vertices will have no effect.
+  The max node and all its edges will be deleted.
+
+  If all target vertices do not exist, there is no effect,
+  and the result will be the same as the input.
+  Otherwise, the input graph will be modified.
+  """
+  @spec contract_nodes(G.graph(), G.verts() | G.vset()) :: G.graph()
+  def contract_nodes(g, verts) do
+    case Enum.filter(verts, &vert?(g, &1)) do
+      [] ->
+        g
+
+      [i] ->
+        delete(g, i)
+
+      verts ->
+        vset = MapSet.new(verts)
+        i = Exa.Set.min(vset)
+        jset = MapSet.delete(vset, i)
+        init = {MapSet.new(), false, MapSet.new()}
+
+        {ins, self?, outs} =
+          Enum.reduce(jset, init, fn j, {ins, self?, outs} ->
+            {jins, jself, jouts} = neighborhood(g, j, :in_out_self)
+            new_self? = if is_nil(jself), do: self?, else: true
+            {MapSet.union(ins, jins), new_self?, MapSet.union(outs, jouts)}
+          end)
+
+        # transfer any self-loops
+        g = if self?, do: add(g, {i, i}), else: g
+
+        # transfer internal & external incoming edges
+        # delete the target vertices 
+        g
+        |> add(ins |> MapSet.difference(vset) |> Enum.map(&{&1, i}))
+        |> add(outs |> MapSet.difference(vset) |> Enum.map(&{i, &1}))
+        |> delete(jset)
     end
   end
 
@@ -394,36 +450,46 @@ defmodule Exa.Graf.Graf do
   The node is removed, and the two edges are replaced by a
   single edge from the incoming neighbor to the outgoing neighbor.
 
-  Contracting linear nodes does not change the 
-  topological structure of the graph.
-
-  If the input graph is simple (no self-loops)
-  then the output graph is also simple.
-
-  So there are two additional constraints on the new edge:
+  There are two additional constraints on the new edge:
   - not a duplicate of an existing edge
   - not a self-loop
+
+  If the neighbors are the same node, 
+  no self-loop is created.
+
+  So, if the input graph is simple (no self-loops)
+  then the output graph is also simple.
+
+  Contracting linear nodes does not change the 
+  topological structure of the graph.
 
   The topologies of two graphs can be compared 
   by contracting all linear nodes and testing for isomorphism.
   If the two contractions are isomorphic, 
-  then the original graphs are homeomorphic (topologically equivalent).
+  then the original graphs are _homeomorphic_ (topologically equivalent).
   """
   @spec contract_linear(G.graph(), G.vert()) :: G.graph() | {:error, any()}
   def contract_linear(g, i) when is_graph(g) and is_vert(i) do
     case neighborhood(g, i, :in_self_out) do
-      {[j], nil, [k]} ->
-        cond do
-          j == k -> {:error, "Common vertex"}
-          edge?(g, {j, k}) -> {:error, "Duplicate edge"}
-          true -> g |> delete(i) |> add({j, k})
-        end
-
       {:error, _} = err ->
         err
 
-      _ ->
-        {:error, "Not linear"}
+      {_ins, ^i, _outs} ->
+        {:error, "Self loop"}
+
+      {ins, nil, outs} ->
+        if MapSet.size(ins) != 1 or MapSet.size(outs) != 1 do
+          {:error, "Not linear"}
+        else
+          [j] = MapSet.to_list(ins)
+          [k] = MapSet.to_list(outs)
+
+          cond do
+            j == k -> {:error, "Creates self-loop"}
+            edge?(g, {j, k}) -> {:error, "Edge exists"}
+            true -> g |> delete(i) |> add({j, k})
+          end
+        end
     end
   end
 
@@ -654,7 +720,7 @@ defmodule Exa.Graf.Graf do
 
         {
           Map.put(nindex, i, {ins, outs}),
-          Map.put(dindex, i, {length(ins), self_deg, length(outs)})
+          Map.put(dindex, i, {MapSet.size(ins), self_deg, MapSet.size(outs)})
         }
       end)
 

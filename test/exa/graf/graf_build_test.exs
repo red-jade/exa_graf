@@ -27,9 +27,9 @@ defmodule Exa.Graf.GrafBuildTest do
       render(g, {[], [], [], []})
       assert 0 == Graf.nvert(g)
       assert 0 == Graf.nedge(g)
-      assert not Graf.connected?(g)
-      assert 0 == Graf.ncomp(g)
-      assert %{} == Graf.components(g)
+      assert not Graf.connected_weak?(g)
+      assert 0 == Graf.n_comp_weak(g)
+      assert %{} == Graf.components_weak(g)
     end
   end
 
@@ -42,11 +42,11 @@ defmodule Exa.Graf.GrafBuildTest do
 
     for g <- graphs do
       {1, 10} = Graf.verts_minmax(g)
-      comps = Graf.components(g)
-      assert not Graf.connected?(g)
+      comps = Graf.components_weak(g)
+      assert not Graf.connected_weak?(g)
       assert MapSet.new([1]) == Graf.reachable(g, 1)
       assert MapSet.new([5]) == Graf.reachable(g, 5)
-      assert 10 == Graf.ncomp(g)
+      assert 10 == Graf.n_comp_weak(g)
       assert Enum.reduce(1..10, %{}, &Map.put(&2, &1, [&1])) == comps
     end
   end
@@ -59,8 +59,8 @@ defmodule Exa.Graf.GrafBuildTest do
     graphs = grafy(&GrafBuild.line/2, {h1in, h1out, h1inout, h2inout})
 
     for g <- graphs do
-      comps = Graf.components(g)
-      assert Graf.connected?(g)
+      comps = Graf.components_weak(g)
+      assert Graf.connected_weak?(g)
       assert Graf.tree?(g)
       assert :source == Graf.classify(g, 1)
       assert :linear == Graf.classify(g, 2)
@@ -80,8 +80,8 @@ defmodule Exa.Graf.GrafBuildTest do
     graphs = grafy(&GrafBuild.ring/2, {h1in, h1out, h1inout, h2inout})
 
     for g <- graphs do
-      comps = Graf.components(g)
-      assert Graf.connected?(g)
+      comps = Graf.components_weak(g)
+      assert Graf.connected_weak?(g)
       assert not Graf.tree?(g)
       assert :linear == Graf.classify(g, 1)
       assert MapSet.new(1..10) == Graf.reachable(g, 1)
@@ -122,12 +122,12 @@ defmodule Exa.Graf.GrafBuildTest do
     graphs = grafy(&GrafBuild.wheel/2, {h1in, h1out, h1inout, h2inout})
 
     for g <- graphs do
-      comps = Graf.components(g)
-      assert Graf.connected?(g)
+      comps = Graf.components_weak(g)
+      assert Graf.connected_weak?(g)
       assert not Graf.tree?(g)
       assert MapSet.new(1..10) == Graf.reachable(g, 1)
       assert MapSet.new(2..10) == Graf.reachable(g, 2)
-      assert 1 = Graf.ncomp(g)
+      assert 1 = Graf.n_comp_weak(g)
       assert %{1 => Range.to_list(1..10)} == Mol.sort(comps)
     end
   end
@@ -141,15 +141,15 @@ defmodule Exa.Graf.GrafBuildTest do
 
     for g <- graphs do
       assert @n * (@n - 1) == Graf.nedge(g)
-      comps = Graf.components(g)
-      assert Graf.connected?(g)
+      comps = Graf.components_weak(g)
+      assert Graf.connected_weak?(g)
       assert not Graf.tree?(g)
       assert :complex == Graf.classify(g, 1)
       assert :complex == Graf.classify(g, 5)
 
       assert MapSet.new(1..10) == Graf.reachable(g, 1)
       assert MapSet.new(1..10) == Graf.reachable(g, 5)
-      assert 1 = Graf.ncomp(g)
+      assert 1 = Graf.n_comp_weak(g)
       assert %{1 => Range.to_list(1..10)} == Mol.sort(comps)
 
       h = Graf.degree_histo2d(g)
@@ -172,11 +172,11 @@ defmodule Exa.Graf.GrafBuildTest do
       end)
 
     for g <- graphs do
-      assert Graf.connected?(g)
+      assert Graf.connected_weak?(g)
       assert not Graf.tree?(g)
       assert MapSet.new(1..12) == Graf.reachable(g, 1)
       assert MapSet.new(1..12) == Graf.reachable(g, 7)
-      assert %{1 => Range.to_list(1..12)} == Mol.sort(Graf.components(g))
+      assert %{1 => Range.to_list(1..12)} == Mol.sort(Graf.components_weak(g))
     end
   end
 

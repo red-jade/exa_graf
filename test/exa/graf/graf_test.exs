@@ -199,7 +199,7 @@ defmodule Exa.Graf.GrafTest do
       assert MapSet.new([3, 4, 5]) == reachable(g, 5)
       assert MapSet.new([1, 3, 4, 5]) == reachable(g, 4, :in)
       assert MapSet.new([1, 3, 4, 5]) == reachable(g, 3, :in_out)
-      assert connected?(g)
+      assert connected_weak?(g)
       assert tree?(g)
 
       g = delete(g, {1, 2})
@@ -219,12 +219,12 @@ defmodule Exa.Graf.GrafTest do
       assert :source == classify(g, 2)
       assert :sink == classify(g, 3)
 
-      assert not connected?(g)
+      assert not connected_weak?(g)
       assert MapSet.new([2, 3]) == reachable(g, 2)
       assert MapSet.new([4, 5]) == reachable(g, 4)
       assert MapSet.new([2, 3]) == reachable(g, 3, :in)
       assert MapSet.new([4, 5, 6]) == reachable(g, 5, :in)
-      comps = components(g)
+      comps = components_weak(g)
       assert 3 = map_size(comps)
       assert %{1 => [1], 2 => [2, 3], 4 => [4, 5, 6]} == Mol.sort(comps)
     end)

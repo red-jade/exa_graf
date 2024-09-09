@@ -131,14 +131,14 @@ defmodule Exa.Graf.Dig do
 
   def degree({:dig, _, dig}, i, :in_self_out) when is_vert(i) do
     iv = vmake(i)
-    indeg = :digraph.in_degree(dig, iv)
-    outs = :digraph.out_neighbours(dig, iv)
-    outdeg = length(outs)
 
-    cond do
-      not do_vert?(dig, iv) -> {:error, "Missing vertex #{i}"}
-      iv in outs -> {indeg - 1, 1, outdeg - 1}
-      true -> {indeg, 0, outdeg}
+    if do_vert?(dig, iv) do
+      indeg = :digraph.in_degree(dig, iv)
+      outs = :digraph.out_neighbours(dig, iv)
+      outdeg = length(outs)
+      if iv in outs, do: {indeg - 1, 1, outdeg - 1}, else: {indeg, 0, outdeg}
+    else
+      {:error, "Missing vertex #{i}"}
     end
   end
 
@@ -148,7 +148,7 @@ defmodule Exa.Graf.Dig do
     iv = vmake(i)
 
     if do_vert?(dig, iv) do
-      vids(:digraph.in_neighbours(dig, iv))
+      dig |> :digraph.in_neighbours(iv) |> vids() |> MapSet.new()
     else
       {:error, "Missing vertex #{i}"}
     end
@@ -158,7 +158,7 @@ defmodule Exa.Graf.Dig do
     iv = vmake(i)
 
     if do_vert?(dig, iv) do
-      vids(:digraph.out_neighbours(dig, iv))
+      dig |> :digraph.out_neighbours(iv) |> vids() |> MapSet.new()
     else
       {:error, "Missing vertex #{i}"}
     end
@@ -168,7 +168,27 @@ defmodule Exa.Graf.Dig do
     iv = vmake(i)
 
     if do_vert?(dig, iv) do
-      {vids(:digraph.in_neighbours(dig, iv)), vids(:digraph.out_neighbours(dig, iv))}
+      {
+        dig |> :digraph.in_neighbours(iv) |> vids() |> MapSet.new(),
+        dig |> :digraph.out_neighbours(iv) |> vids() |> MapSet.new()
+      }
+    else
+      {:error, "Missing vertex #{i}"}
+    end
+  end
+
+  def neighborhood({:dig, _, dig}, i, :in_self_out) when is_vert(i) do
+    iv = vmake(i)
+
+    if do_vert?(dig, iv) do
+      ins = dig |> :digraph.in_neighbours(iv) |> vids() |> MapSet.new()
+      outs = dig |> :digraph.out_neighbours(iv) |> vids() |> MapSet.new()
+
+      if MapSet.member?(ins, i) do
+        {MapSet.delete(ins, i), i, MapSet.delete(outs, i)}
+      else
+        {ins, nil, outs}
+      end
     else
       {:error, "Missing vertex #{i}"}
     end
@@ -238,7 +258,7 @@ defmodule Exa.Graf.Dig do
   end
 
   defp do_add(_dig, gel) do
-    {:error, "Unrecognized graph element #{gel}"}
+    {:error, "Unrecognized graph element #{inspect(gel)}"}
   end
 
   @impl true
@@ -302,7 +322,7 @@ defmodule Exa.Graf.Dig do
   end
 
   @impl true
-  def components({:dig, _, dig}) do
+  def components_weak({:dig, _, dig}) do
     dig
     |> :digraph_utils.components()
     |> Enum.reduce(%{}, fn vdigs, comps ->
