@@ -36,9 +36,9 @@ and vertex classification.
 Functions to find:
 - vertex degrees
 - neighborhoods
-- degree histograms.
-- connectedness and (weakly) connected components
 - reachability sets
+- degree histograms (1D, 2D, 3D)
+- connected components (weak & strong)
 
 Build 1D, 2D and 3D histograms from vertex degrees.
 Use the 3D in-self-out adjacency histogram
