@@ -262,7 +262,8 @@ defmodule Exa.Graf.Adj do
   end
 
   @impl true
-  def components_weak({:adj, _, {_, outadj}}) do
+
+  def components({:adj, _, {_, outadj}}, :weak) do
     # union find algorithm
     verts = Map.keys(outadj)
 
@@ -288,6 +289,29 @@ defmodule Exa.Graf.Adj do
 
     # note this returns lists (MoL) not sets (MoS)
     Exa.Map.invert(comps)
+  end
+
+  def components({:adj, _, {inadj, outadj}}, :strong) do
+    do_scc(inadj, outadj, inadj |> Map.keys() |> MapSet.new(), %{})
+  end
+
+  defp do_scc(inadj, outadj, vset, comps) do
+    # Tarjan is faster, but reachability is easy ....
+    # reachability intersection from any vertex 
+    # is guaranteed to find an scc 
+    # even if the vertex is isolated and is its own scc
+    if MapSet.size(vset) == 0 do
+      comps
+    else
+      [i] = Enum.take(vset, 1)
+      ins = do_reach(MapSet.new(), inadj, i, -1)
+      outs = do_reach(MapSet.new(), outadj, i, -1)
+      comp = MapSet.intersection(ins, outs) 
+      cid = Exa.Set.min(comp)
+      new_comps = Map.put(comps, cid, MapSet.to_list(comp))
+      new_vset = MapSet.difference(vset, comp)
+      do_scc(inadj, outadj, new_vset, new_comps)
+    end
   end
 
   @impl true

@@ -101,8 +101,8 @@ defmodule Exa.Graf.Graf do
     do: dispatch(@disp, g, :neighborhood, [i, adjy])
 
   @impl true
-  def components_weak(g) when is_graph(g),
-    do: dispatch(@disp, g, :components_weak)
+  def components(g, conn) when is_graph(g) and is_conn(conn),
+    do: dispatch(@disp, g, :components, [conn])
 
   @impl true
   def reachable(g, i, adjy \\ :out, nhop \\ :infinity) when is_graph(g) and is_vert(i),
@@ -155,12 +155,9 @@ defmodule Exa.Graf.Graf do
   end
 
   @doc """
-  Test if the graph is weakly connected
-  (undirected connectivity).
+  Test if the graph is weakly or strongly connected.
 
-  Returns true if there is exactly one connected component:
-  all pairs of vertices are connected
-  by some path traversing edges in any direction.
+  Returns true if there is exactly one connected component.
 
   The empty graph is not connected (zero components).
 
@@ -168,18 +165,18 @@ defmodule Exa.Graf.Graf do
   because there is exactly one component.
   The isolated vertex may or may not have a self loop.
   """
-  @spec connected_weak?(G.graph()) :: bool()
-  def connected_weak?(g) when is_graph(g) do
+  @spec connected?(G.graph(), G.connectivity()) :: bool()
+  def connected?(g, conn) when is_graph(g) and is_conn(conn) do
     case nvert(g) do
       0 -> false
       1 -> true
-      _ -> n_comp_weak(g) == 1
+      _ -> ncomp(g, conn) == 1
     end
   end
 
-  @doc "Get the number of weakly connected components."
-  @spec n_comp_weak(G.graph()) :: E.count()
-  def n_comp_weak(g) when is_graph(g), do: g |> components_weak() |> map_size()
+  @doc "Get the number of weakly or strongly connected components."
+  @spec ncomp(G.graph(), G.connectivity()) :: E.count()
+  def ncomp(g, conn) when is_graph(g), do: g |> components(conn) |> map_size()
 
   @doc """
   Get the isolated vertices that have no incident edges and no self-edge.
@@ -267,7 +264,7 @@ defmodule Exa.Graf.Graf do
   @doc "Test if a graph is a weakly connected tree."
   @spec tree?(G.graph()) :: bool()
   def tree?(g) when is_graph(g) do
-    nedge(g) == nvert(g) - 1 and connected_weak?(g)
+    nedge(g) == nvert(g) - 1 and connected?(g, :weak)
   end
 
   @doc """
@@ -399,23 +396,20 @@ defmodule Exa.Graf.Graf do
   for all external neighbors of the node group,
   plus the transfer of any self-edge.
 
+  The remainder of the node group and all its edges will be deleted.
+
   Any duplicated edges will be ignored.
   Any repeated vertices will have no effect.
-  The max node and all its edges will be deleted.
 
-  If all target vertices do not exist, there is no effect,
+  If only 0 or 1 target vertices exist, there is no effect,
   and the result will be the same as the input.
   Otherwise, the input graph will be modified.
   """
   @spec contract_nodes(G.graph(), G.verts() | G.vset()) :: G.graph()
   def contract_nodes(g, verts) do
-    case Enum.filter(verts, &vert?(g, &1)) do
-      [] ->
-        g
-
-      [i] ->
-        delete(g, i)
-
+    case Enum.filter(verts,&vert?(g, &1)) do
+      [] ->        g
+      [_] ->        g
       verts ->
         vset = MapSet.new(verts)
         i = Exa.Set.min(vset)

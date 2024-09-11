@@ -175,6 +175,23 @@ defmodule Exa.Graf.Types do
   defguard is_nhop(n) when is_count(n) or n == :infinity
 
   @typedoc """
+  Connectivity for components:
+  - Weakly connected: each pair of vertices is connected
+    by at least one undirected path traversing 
+    edges in any direction.
+  - Strongly connected: each pair of vertices is 
+    connected with a directed path in each direction.
+
+  A strongly connected component is a cyclic subgraph. 
+  If there are no cycles (tree or DAG), 
+  the strongly connected components
+  are just individual vertices.
+  """
+  @type connectivity() :: :weak | :strong
+
+  defguard is_conn(c) when c in [:weak, :strong]
+
+  @typedoc """
   Classify a vertex.
 
   Values are:

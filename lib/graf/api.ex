@@ -119,21 +119,26 @@ defmodule Exa.Graf.API do
               | {:error, any()}
 
   @doc """
-  Get the weakly connected components of the graph
-  (undirected connectivity).
+  Get the connected components of the graph.
+
+  The components may connect pairs of vertices as:
+  - weakly connected: 
+    undirected connectivity along any edge in any direction
+  - strongly connected: 
+    cyclic subgraph with directed path in each direction
 
   Returns an MoL index of components:
   a map of component id to list of distinct vertices in the component.
 
-  We choose the component id to be the minimum vertex id in the component.
+  The component id is the minimum vertex id in the component.
 
   The union of all components is the total set of vertices.
   Every vertex is a member of exactly one component.
 
-  Isolated vertices appear as singleton sets,
+  Isolated vertices appear as singleton lists,
   indexed by the vertex id.
   """
-  @callback components_weak(G.graph()) :: G.components()
+  @callback components(G.graph(), G.connectivity()) :: G.components()
 
   @doc """
   Get the set of vertices reachable from the given vertex

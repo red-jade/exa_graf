@@ -322,11 +322,19 @@ defmodule Exa.Graf.Dig do
   end
 
   @impl true
-  def components_weak({:dig, _, dig}) do
-    dig
-    |> :digraph_utils.components()
-    |> Enum.reduce(%{}, fn vdigs, comps ->
-      verts = vids(vdigs)
+
+  def components({:dig, _, dig}, :weak) do
+    dig |> :digraph_utils.components() |> do_comps()
+  end
+
+  def components({:dig, _, dig}, :strong) do
+    dig |> :digraph_utils.strong_components() |> do_comps()
+  end
+
+  @spec do_comps([[:digraph.vertex()]]) :: G.components()
+  defp do_comps(lovs) do
+    Enum.reduce(lovs, %{}, fn vs, comps ->
+      verts = vids(vs)
       Map.put(comps, Enum.min(verts), verts)
     end)
   end

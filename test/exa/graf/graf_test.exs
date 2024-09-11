@@ -199,7 +199,7 @@ defmodule Exa.Graf.GrafTest do
       assert MapSet.new([3, 4, 5]) == reachable(g, 5)
       assert MapSet.new([1, 3, 4, 5]) == reachable(g, 4, :in)
       assert MapSet.new([1, 3, 4, 5]) == reachable(g, 3, :in_out)
-      assert connected_weak?(g)
+      assert connected?(g, :weak)
       assert tree?(g)
 
       g = delete(g, {1, 2})
@@ -207,8 +207,8 @@ defmodule Exa.Graf.GrafTest do
     end)
   end
 
-  test "components" do
-    Enum.each([:adj, :dig], fn tag ->
+  test "wcc" do
+    for tag <- [:adj, :dig] do
       # 3 components:
       #   1       isolated
       #   [2,3]   2 -> 3 
@@ -219,15 +219,30 @@ defmodule Exa.Graf.GrafTest do
       assert :source == classify(g, 2)
       assert :sink == classify(g, 3)
 
-      assert not connected_weak?(g)
-      assert MapSet.new([2, 3]) == reachable(g, 2)
-      assert MapSet.new([4, 5]) == reachable(g, 4)
+      assert not connected?(g, :weak)
+      assert MapSet.new([2, 3]) == reachable(g, 2, :out)
+      assert MapSet.new([4, 5]) == reachable(g, 4, :out)
       assert MapSet.new([2, 3]) == reachable(g, 3, :in)
       assert MapSet.new([4, 5, 6]) == reachable(g, 5, :in)
-      comps = components_weak(g)
-      assert 3 = map_size(comps)
+      comps = components(g, :weak)
+      assert 3 == ncomp(g, :weak)
+      assert 3 == map_size(comps)
       assert %{1 => [1], 2 => [2, 3], 4 => [4, 5, 6]} == Mol.sort(comps)
-    end)
+    end
+  end
+
+  test "scc" do
+    # wikipedia SCC example graph, plus a standalone vertex
+    for tag <- [:adj, :dig] do
+    g = new(tag, "scc") 
+        |> add([{1,2,3,1}, {4,5,6,5,4}, {7,8,7}, 9])
+        |> add([{2,7}, {3,7}, {4,8}, {6,8}])
+
+    comps = components(g, :strong)
+    assert 4 == ncomp(g, :strong)
+    assert 4 == map_size(comps)
+    assert %{ 1 => [1,2,3], 4 => [4,5,6], 7 => [7,8], 9 => [9]} == Mol.sort(comps)
+  end
   end
 
   test "reverse" do
