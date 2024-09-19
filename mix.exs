@@ -3,7 +3,7 @@ defmodule Exa.Graf.MixProject do
 
   @lib :exa_graf
   @name "Exa Graf"
-  @ver "0.2.5"
+  @ver "0.2.6"
 
   # umbrella project
   @exa {:exa,
