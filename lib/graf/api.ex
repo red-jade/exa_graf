@@ -11,17 +11,14 @@ defmodule Exa.Graf.API do
   alias Exa.Graf.Types, as: G
 
   @doc """
-  Create a new named graph with a list of graph elements.
+  Create a new named graph.
 
   The first argument is the tag for the result graph type.
-
-  The cyclicity argument is interpreted by 
-  the underlying graph implementation.
 
   The name argument will be sanitized.
   See `Exa.String.sanitize!/1`.
   """
-  @callback new(G.gtype(), G.gname(), G.cyclicity()) :: G.graph()
+  @callback new(G.gtype(), G.gname()) :: G.graph()
 
   @doc "Delete the graph."
   @callback delete(G.graph()) :: true
@@ -43,6 +40,9 @@ defmodule Exa.Graf.API do
 
   @doc "Get the edges of the graph."
   @callback edges(G.graph()) :: G.edges()
+
+  @doc "Get an arbitrary vertex from the graph."
+  @callback some_vert(G.graph()) :: :error | G.vert()
 
   @doc """
   Add an element to a graph.
@@ -90,9 +90,9 @@ defmodule Exa.Graf.API do
 
   Maintain all vertices, but reverse the direction of every edge.
 
-  The name of the output has `"_rev"` appended to the input name.
+  The result is a new graph with `"_transpose"` appended to the name.
   """
-  @callback reverse(G.graph()) :: G.graph()
+  @callback transpose(G.graph()) :: G.graph()
 
   @doc """
   Get the degree for a vertex, given an adjacency relationship.
@@ -109,10 +109,16 @@ defmodule Exa.Graf.API do
   @doc """
   Get the neighbors of a vertex, given an adjacency relationship.
 
+  The source vertex will be included if it has a self-loop:
+  - `:in` or `:out` self in the set
+  - `:in_out` self in both sets
+  - `:in_self_out` self in neither set, 
+     but present in the separate field
+
   Returns an error if the vertex does not exist.
   """
   @callback neighborhood(G.graph(), G.vert(), G.adjacency()) ::
-              in_or_out ::
+              v_in_or_out ::
               G.vset()
               | {v_in :: G.vset(), v_out :: G.vset()}
               | {v_in :: G.vset(), self :: nil | G.vert(), v_out :: G.vset()}
@@ -141,6 +147,21 @@ defmodule Exa.Graf.API do
   @callback components(G.graph(), G.connectivity()) :: G.components()
 
   @doc """
+  Get the condensation graph of the strongly connected components.
+
+  Each strongly connected component is reduced to a single vertex. 
+  The vertex is labelled with the minimum vertex id in the component. 
+  The remaining vertices and all edges within the component are deleted.
+  Edges between components are retained as edges between 
+  the contracted component vertices.
+
+  The condensation graph does not have any cycles.
+
+  The result is a new graph with `"_condensation"` appended to the name.
+  """
+  @callback condensation(G.graph()) :: G.graph()
+
+  @doc """
   Get the set of vertices reachable from the given vertex
   in a certain number of edge steps (which may be `:infinity`).
 
@@ -149,13 +170,18 @@ defmodule Exa.Graf.API do
      the set _reaching_ to this vertex
   - `:out` downstream outgoing edges,
      the set _reachable_ from this vertex
-  - `:in_out` both upstream and downstream reachability,
-     as if the graph was undirected
-  - `:in_self_out` - same as `:in_out`
+  - `:in_out` union of upstream and downstream reachability,
+  - `:in_self_out` - same as `:in_out` 
 
-  A vertex is considered reaching/reachable itself,
+  A vertex is always considered reaching/reachable itself,
   even if it does not have a self-loop edge. 
   So the result will always have at least the source vertex.
+
+  Reachability is defined from a single target,
+  not as the union of recursive frontiers. 
+  For example, the `:in_out` adjacency means two traversals
+  from the target, not a recursive bidirectional exploration
+  of the weakly connected component.
   """
   @callback reachable(G.graph(), G.vert(), G.adjacency(), G.nhop()) :: G.vset()
 end

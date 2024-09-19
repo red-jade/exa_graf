@@ -35,6 +35,7 @@ defmodule Exa.Graf.Graf do
   alias Exa.Std.Histo2D
   alias Exa.Std.Histo3D
   alias Exa.Std.Tidal
+  alias Exa.Std.Mol
 
   alias Exa.Graf.Adj
   alias Exa.Graf.Dig
@@ -57,47 +58,63 @@ defmodule Exa.Graf.Graf do
   @behaviour Exa.Graf.API
 
   @impl true
-  def new(tag, name, cyc \\ :cyclic) do
+  def new(tag, name) do
     # remove punctuation, convert space to '_', truncate for file system
     gname = Exa.String.sanitize!(name, 200)
-    dispatch(@disp, tag, :new, [gname, cyc])
+    dispatch(@disp, tag, :new, [gname])
   end
 
   @impl true
-  def delete(g) when is_graph(g), do: dispatch(@disp, g, :delete)
+  def delete(g) when is_graph(g),
+    do: dispatch(@disp, g, :delete)
 
   @impl true
-  def vert?(g, i) when is_graph(g) and is_vert(i), do: dispatch(@disp, g, :vert?, [i])
+  def vert?(g, i) when is_graph(g) and is_vert(i),
+    do: dispatch(@disp, g, :vert?, [i])
 
   @impl true
-  def edge?(g, e) when is_graph(g) and is_edge(e), do: dispatch(@disp, g, :edge?, [e])
+  def edge?(g, e) when is_graph(g) and is_edge(e),
+    do: dispatch(@disp, g, :edge?, [e])
 
   @impl true
-  def nvert(g) when is_graph(g), do: dispatch(@disp, g, :nvert)
+  def nvert(g) when is_graph(g),
+    do: dispatch(@disp, g, :nvert)
 
   @impl true
-  def nedge(g) when is_graph(g), do: dispatch(@disp, g, :nedge)
+  def nedge(g) when is_graph(g),
+    do: dispatch(@disp, g, :nedge)
 
   @impl true
-  def verts(g) when is_graph(g), do: dispatch(@disp, g, :verts)
+  def verts(g) when is_graph(g),
+    do: dispatch(@disp, g, :verts)
 
   @impl true
-  def edges(g) when is_graph(g), do: dispatch(@disp, g, :edges)
+  def edges(g) when is_graph(g),
+    do: dispatch(@disp, g, :edges)
 
   @impl true
-  def add(g, gelem) when is_graph(g), do: dispatch(@disp, g, :add, [gelem])
+  def some_vert(g) when is_graph(g) do
+    if nvert(g) == 0, do: :error, else: dispatch(@disp, g, :some_vert)
+  end
 
   @impl true
-  def delete(g, gelem) when is_graph(g), do: dispatch(@disp, g, :delete, [gelem])
+  def add(g, gelem) when is_graph(g),
+    do: dispatch(@disp, g, :add, [gelem])
 
   @impl true
-  def reverse(g) when is_graph(g), do: dispatch(@disp, g, :reverse)
+  def delete(g, gelem) when is_graph(g),
+    do: dispatch(@disp, g, :delete, [gelem])
 
   @impl true
-  def degree(g, i, adjy) when is_graph(g), do: dispatch(@disp, g, :degree, [i, adjy])
+  def transpose(g) when is_graph(g),
+    do: dispatch(@disp, g, :transpose)
 
   @impl true
-  def neighborhood(g, i, adjy) when is_graph(g),
+  def degree(g, i, adjy) when is_graph(g) and is_vert(i) and is_adjacency(adjy),
+    do: dispatch(@disp, g, :degree, [i, adjy])
+
+  @impl true
+  def neighborhood(g, i, adjy) when is_graph(g) and is_vert(i) and is_adjacency(adjy),
     do: dispatch(@disp, g, :neighborhood, [i, adjy])
 
   @impl true
@@ -105,8 +122,13 @@ defmodule Exa.Graf.Graf do
     do: dispatch(@disp, g, :components, [conn])
 
   @impl true
-  def reachable(g, i, adjy \\ :out, nhop \\ :infinity) when is_graph(g) and is_vert(i),
-    do: dispatch(@disp, g, :reachable, [i, adjy, nhop])
+  def reachable(g, i, adjy \\ :out, nhop \\ :infinity)
+      when is_graph(g) and is_vert(i) and is_adjacency(adjy) and is_nhop(nhop),
+      do: dispatch(@disp, g, :reachable, [i, adjy, nhop])
+
+  @impl true
+  def condensation(g) when is_graph(g),
+    do: dispatch(@disp, g, :condensation)
 
   # -----------------------
   # generic implementations 
@@ -116,9 +138,9 @@ defmodule Exa.Graf.Graf do
   @doc """
   Create a new graph and add a list of graph elements.
   """
-  @spec build(G.gtype(), G.gname(), G.glist(), G.cyclicity()) :: G.graph()
-  def build(tag, gname, glist, cyc \\ :cyclic) when is_gname(gname) and is_list(glist) do
-    tag |> new(gname, cyc) |> add(glist)
+  @spec build(G.gtype(), G.gname(), G.glist()) :: G.graph()
+  def build(tag, gname, glist) when is_gname(gname) and is_list(glist) do
+    tag |> new(gname) |> add(glist)
   end
 
   @doc "Get the tag type of a graph."
@@ -151,7 +173,7 @@ defmodule Exa.Graf.Graf do
   def convert(g, tag) when tag == elem(g, 0), do: g
 
   def convert(g, tag) when is_graph(g) and is_gtype(tag) do
-    new(tag, name(g)) |> add(edges(g)) |> add(verts_isolated(g))
+    tag |> new(name(g)) |> add(edges(g)) |> add(isolated(g))
   end
 
   @doc """
@@ -181,9 +203,17 @@ defmodule Exa.Graf.Graf do
   @doc """
   Get the isolated vertices that have no incident edges and no self-edge.
   """
-  @spec verts_isolated(G.graph()) :: G.verts()
-  def verts_isolated(g) when is_graph(g) do
-    Enum.filter(verts(g), fn i -> degree(g, i, :in_out) == {0, 0} end)
+  @spec isolated(G.graph()) :: G.verts()
+  def isolated(g) when is_graph(g) do
+    g |> verts() |> Enum.filter(fn i -> degree(g, i, :in_out) == {0, 0} end)
+  end
+
+  @doc """
+  Get the source vertices that have no outgoing edges and no self-edge.
+  """
+  @spec sources(G.graph()) :: G.verts()
+  def sources(g) when is_graph(g) do
+    g |> verts() |> Enum.filter(fn i -> degree(g, i, :in) == 0 end)
   end
 
   @doc """
@@ -261,10 +291,134 @@ defmodule Exa.Graf.Graf do
   @spec isolated?(G.graph(), G.vert()) :: bool()
   def isolated?(g, i), do: classify(g, i) in [:isolated, :self_isolated]
 
-  @doc "Test if a graph is a weakly connected tree."
-  @spec tree?(G.graph()) :: bool()
-  def tree?(g) when is_graph(g) do
+  @doc """
+  Test if a graph is a connected tree.
+
+  If the connectivity is `:weak` then the graph is tested
+  for being a weakly-connected tree, as if all edges were undirected.
+  Returns `true` if it is a single weakly-connected 
+  component with `|E| = |V| - 1`.
+
+  If the connectivity is `:strong` then the graph is tested 
+  for being a directed rooted tree. 
+  Returns the root vertex if it is a weakly connected tree
+  with a single _root_ source vertex, 
+  from which the whole tree is reachable.
+
+  Otherwise return `false`.
+
+  Note that in an undirected tree, 
+  any vertex can be chosen as the root.
+  """
+  @spec tree?(G.graph(), G.connectivity()) :: bool() | G.vert()
+
+  def tree?(g, :weak) when is_graph(g) do
     nedge(g) == nvert(g) - 1 and connected?(g, :weak)
+  end
+
+  def tree?(g, :strong) when is_graph(g) do
+    if not tree?(g, :weak) do
+      false
+    else
+      g
+      |> reachable(some_vert(g), :in)
+      |> Enum.filter(&(degree(g, &1, :in) == 0))
+      |> test_sources(g)
+    end
+  end
+
+  defp test_sources([root], g) do
+    if MapSet.size(reachable(g, root, :out)) == nvert(g) do
+      root
+    else
+      false
+    end
+  end
+
+  defp test_sources(_, _), do: false
+
+  @doc """
+  Get a map of frontiers at different hops (radius) from a vertex.
+  A frontier at distance _nhop_ is the set difference 
+  of the reachable sets at distances `nhop` and `nhop-1`.
+
+  The 0th frontier is just the vertex itself.
+
+  Subsequent frontiers are the vertices included in the next hop
+  which have not already been reached.   
+  Self-loops do not affect frontiers.
+
+  Traversal stops at the maximum nhop,
+  or when the frontier is empty.
+  The result does not contain any empty frontier values,
+  so it does not necessarily contain all requested nhop values as keys.
+
+  Frontiers are built from recursive exploration of the graph,
+  not just reachability traversals with a single adjacency direction.
+  For example, the `:in_out` adjacency frontiers 
+  will explore the weakly connected frontiers in the graph.
+
+  The union of all frontier values is the total connected set
+  for that nhop distance.
+  If the graph is a single connected component (weak/in_out, strong/out)
+  then the union of an infinite frontier search 
+  will include all vertices in the graph.
+
+  Frontiers are disjoint, 
+  there is no vertex that appears in more than one frontier.
+
+  Return error if the vertex does not exist.
+  """
+  @spec frontiers(G.graph(), G.vert(), G.adjacency(), G.nhop()) :: G.frontiers() | {:error, any}
+  def frontiers(g, i, adjy \\ :out, nhop \\ :infinity)
+      when is_graph(g) and is_vert(i) and is_adjacency(adjy) and is_nhop(nhop) do
+    if not vert?(g, i) do
+      {:error, "Vertex #{i} does not exist"}
+    else
+      reach = MapSet.new([i])
+      do_frontier(g, reach, adjy, 0, nhop, %{0 => reach})
+    end
+  end
+
+  # count up to nhop target (never grows equal to :infinity)
+  @spec do_frontier(G.graph(), MapSet.t(), G.adjacency(), E.count(), G.nhop(), G.frontiers()) ::
+          G.frontiers()
+
+  defp do_frontier(_g, _reach, _adjy, nhop, nhop, fronts), do: fronts
+
+  defp do_frontier(g, reach, adjy, n, nhop, fronts) when is_map_key(fronts, n) do
+    front =
+      fronts
+      |> Map.fetch!(n)
+      |> Enum.reduce(MapSet.new(), fn j, fs ->
+        g |> hop(j, adjy) |> MapSet.union(fs)
+      end)
+      |> MapSet.difference(reach)
+
+    if MapSet.size(front) == 0 do
+      fronts
+    else
+      n1 = n + 1
+      new_reach = MapSet.union(reach, front)
+      new_fronts = Map.put(fronts, n1, front)
+      do_frontier(g, new_reach, adjy, n1, nhop, new_fronts)
+    end
+  end
+
+  # union of neighborhoods for one hop
+  @spec hop(G.graph(), G.vert(), G.adjacency()) :: G.vset()
+
+  defp hop(g, i, adjy) when adjy in [:in, :out], do: neighborhood(g, i, adjy)
+
+  defp hop(g, i, :in_out) do
+    {ins, outs} = neighborhood(g, i, :in_out)
+    MapSet.union(ins, outs)
+  end
+
+  defp hop(g, i, :in_self_out) do
+    {ins, self, outs} = neighborhood(g, i, :in_self_out)
+    hop = MapSet.union(ins, outs)
+    if is_nil(self), do: hop, else: MapSet.put(hop, i)
   end
 
   @doc """
@@ -285,7 +439,7 @@ defmodule Exa.Graf.Graf do
   @spec relabel(G.graph(), (G.vert() -> G.vert())) :: G.graph()
   def relabel(g, vfun) when is_graph(g) and is_function(vfun, 1) do
     new(elem(g, 0), elem(g, 1))
-    |> add(g |> verts_isolated() |> Enum.map(vfun))
+    |> add(g |> isolated() |> Enum.map(vfun))
     |> add(g |> edges() |> Enum.map(fn {i, j} -> {vfun.(i), vfun.(j)} end))
   end
 
@@ -322,7 +476,7 @@ defmodule Exa.Graf.Graf do
   @spec join(G.graph(), G.graph(), :merge | :disjoint) :: G.graph()
 
   def join(g1, g2, :merge) when is_graph(g1) and is_graph(g2) do
-    g1 |> add(verts_isolated(g2)) |> add(edges(g2))
+    g1 |> add(isolated(g2)) |> add(edges(g2))
   end
 
   def join(g1, g2, :disjoint) when is_graph(g1) and is_graph(g2) do
@@ -380,8 +534,8 @@ defmodule Exa.Graf.Graf do
         # transfer outward edges
         # deleting the node deletes all its edges
         g
-        |> add(Enum.map(ins, & {&1, i}))
-        |> add(Enum.map(outs, & {i, &1}))
+        |> add(Enum.map(ins, &{&1, i}))
+        |> add(Enum.map(outs, &{i, &1}))
         |> delete(j)
     end
   end
@@ -407,33 +561,34 @@ defmodule Exa.Graf.Graf do
   """
   @spec contract_nodes(G.graph(), G.verts() | G.vset()) :: G.graph()
   def contract_nodes(g, verts) do
-    case Enum.filter(verts,&vert?(g, &1)) do
-      [] ->        g
-      [_] ->        g
-      verts ->
-        vset = MapSet.new(verts)
-        i = Exa.Set.min(vset)
-        jset = MapSet.delete(vset, i)
-        init = {MapSet.new(), false, MapSet.new()}
+    # filter non-existent/duplicate vertices and get min vertex value
+    {imin, vset} =
+      Enum.reduce(verts, {nil, @empty_set}, fn i, {imin, vset} = acc ->
+        if vert?(g, i), do: {minil(imin, i), MapSet.put(vset, i)}, else: acc
+      end)
 
-        {ins, self?, outs} =
-          Enum.reduce(jset, init, fn j, {ins, self?, outs} ->
-            {jins, jself, jouts} = neighborhood(g, j, :in_out_self)
-            new_self? = if is_nil(jself), do: self?, else: true
-            {MapSet.union(ins, jins), new_self?, MapSet.union(outs, jouts)}
-          end)
+    if MapSet.size(vset) < 2 do
+      g
+    else
+      vset
+      |> MapSet.delete(imin)
+      |> Enum.reduce(g, fn j, g ->
+        {jins, jself, jout} = neighborhood(g, j, :in_self_out)
 
-        # transfer any self-loops
-        g = if self?, do: add(g, {i, i}), else: g
-
-        # transfer internal & external incoming edges
-        # delete the target vertices 
         g
-        |> add(ins |> MapSet.difference(vset) |> Enum.map(&{&1, i}))
-        |> add(outs |> MapSet.difference(vset) |> Enum.map(&{i, &1}))
-        |> delete(jset)
+        |> add_self(imin, jself)
+        |> add(jins |> MapSet.difference(vset) |> Enum.map(&{&1, imin}))
+        |> add(jout |> MapSet.difference(vset) |> Enum.map(&{imin, &1}))
+        |> delete(j)
+      end)
     end
   end
+
+  defp add_self(g, _i, nil), do: g
+  defp add_self(g, i, _j), do: add(g, {i, i})
+
+  defp minil(nil, k), do: k
+  defp minil(i, k), do: min(i, k)
 
   @doc """
   Contract a linear node.
@@ -752,6 +907,184 @@ defmodule Exa.Graf.Graf do
   defp hash_term(term) do
     <<i::256>> = :crypto.hash(:sha256, :erlang.term_to_binary(term, [:local]))
     i
+  end
+
+  # ---
+  # DFS
+  # ---
+
+  # depth-first traversal data
+  @typep dfs() :: {unvisited :: G.vset(), dff :: G.forest()}
+
+  @doc """
+  Build a spanning forest for the graph.
+  A spanning forest is a sequence of directed rooted trees.
+  The forest includes all vertices, but only a subset of the edges.
+
+  Three classes of edges are excluded:
+  - reverse: to ancestors within the tree
+  - forward: to non-ancestors on other branches within the tree 
+  - cross: from a later tree to an earlier tree
+
+  By construction, there are no _forward cross_ edges
+  from earlier trees to later trees.
+
+  The forest is represented as a map of vertices 
+  to a list of their outgoing directed tree edges.
+  Leaf vertices with no outgoing tree edges 
+  do not have an entry in the forest.
+  There is a special key `:forest` that 
+  contains a list of the roots of trees.
+
+  The spanning forest is created by depth-first traversal,
+  so it is often called a _depth-first forest._
+
+  The initial root vertex for the forest may be specified
+  as an argument, otherwise it is picked arbitrarily from the graph.
+  """
+  @spec spanning_forest(G.graph(), nil | G.vert()) :: G.forest()
+  def spanning_forest(g, root \\ nil)
+      when is_graph(g) and
+             (is_nil(root) or is_vert(root)) do
+    vs = g |> verts() |> MapSet.new()
+
+    if not is_nil(root) and not MapSet.member?(vs, root) do
+      raise ArgumentError, message: "Root #{root} does not exist"
+    end
+
+    do_tree(g, {vs, Mol.new()}, root)
+  end
+
+  @spec do_tree(G.graph(), dfs(), nil | G.vert()) :: G.forest()
+  defp do_tree(g, {vs, dff}, root) do
+    i = if is_nil(root), do: vs |> Enum.take(1) |> hd(), else: root
+    dff = Mol.append(dff, :forest, i)
+    {new_vs, new_dff} = dfs = visit(g, i, {vs, dff}, MapSet.new())
+    if MapSet.size(new_vs) == 0, do: new_dff, else: do_tree(g, dfs, nil)
+  end
+
+  @spec visit(G.graph(), G.vert(), dfs(), G.vset()) :: dfs()
+  defp visit(g, i, {vs, dff}, path) do
+    vs = MapSet.delete(vs, i)
+    ipath = MapSet.put(path, i)
+    outs = neighborhood(g, i, :out)
+
+    {{new_vs, new_dff}, js} =
+      Enum.reduce(outs, {{vs, dff}, []}, fn j, {{vs, _} = dfs, js} = acc ->
+        if MapSet.member?(vs, j), do: {visit(g, j, dfs, ipath), [j | js]}, else: acc
+      end)
+
+    {new_vs, Mol.set(new_dff, i, Enum.reverse(js))}
+  end
+
+  # -----------------
+  # traversal visitor
+  # -----------------
+
+  @typedoc "Internal traversal state."
+  @type state() :: any()
+
+  @typedoc "External result returned from a traversal."
+  @type result() :: any()
+
+  @typedoc """
+  Function to initialize the traversal state.
+
+  The function will usually just return a constant inital state, 
+  ignoring the arguments.
+
+  Default implementation is to return `nil`.
+  """
+  @type init_fun() :: (G.graph(), G.forest() -> state())
+
+  @typedoc """
+  Function invoked for a vertex in the forest.
+
+  There are three situations where the function is invoked:
+  - branch node: 
+    - before (pre) traversal of children
+    - after (post) traversal of children
+  - leaf node: during traversal
+
+  The path is the reverse path from the current vertex
+  to the root of the current tree.
+  The current vertex is the head of the path.
+
+  Default implementation passes through the state unchanged.
+  """
+  @type node_fun() :: (G.graph(), G.path(), state() -> state())
+
+  @typedoc """
+  Function to convert the final traversal state to a result.
+
+  Typically this will be a simple reformatting, 
+  such as reversing lists, or discarding completed counters.
+
+  Default implementation is to pass the state through unchanged.
+  """
+  @type final_fun() :: (state() -> result())
+
+  defmodule DefaultFuns do
+    def pass_through(_, _, state), do: state
+    def pass_through(state), do: state
+    def nil_state(_, _), do: nil
+  end
+
+  defmodule ForestVisitor do
+    import DefaultFuns
+
+    defstruct init_state: &nil_state/2,
+              pre_branch: &pass_through/3,
+              post_branch: &pass_through/3,
+              visit_leaf: &pass_through/3,
+              final_result: &pass_through/1
+  end
+
+  @type forest_visitor() :: %ForestVisitor{
+          init_state: init_fun(),
+          pre_branch: node_fun(),
+          post_branch: node_fun(),
+          visit_leaf: node_fun(),
+          final_result: final_fun()
+        }
+
+  defguard is_forvis(v) when is_struct(v, ForestVisitor)
+
+  @doc """
+  Traverse 
+  """
+  @spec traverse(G.graph(), forest_visitor(), nil | G.forest()) :: any()
+
+  def traverse(g, vis, nil) when is_graph(g) do
+    traverse(g, vis, spanning_forest(g))
+  end
+
+  def traverse(g, vis, forest) when is_graph(g) and is_forvis(vis) and is_map(forest) do
+    forest
+    |> Mol.get(:forest)
+    |> Enum.reduce(vis.init_state.(g, forest), fn root, state ->
+      do_traverse(g, vis, forest, root, [], state)
+    end)
+    |> vis.final_result.()
+  end
+
+  defp do_traverse(g, vis, forest, i, path, state) do
+    path = [i | path]
+
+    case Mol.get(forest, i) do
+      [] ->
+        vis.visit_leaf.(g, path, state)
+
+      children ->
+        pre_state = vis.pre_branch.(g, path, state)
+
+        post_state =
+          Enum.reduce(children, pre_state, fn j, state ->
+            do_traverse(g, vis, forest, j, path, state)
+          end)
+
+        vis.post_branch.(g, path, post_state)
+    end
   end
 
   # --------

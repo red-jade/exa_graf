@@ -4,7 +4,7 @@
 
 EXA project index: [exa](https://github.com/red-jade/exa)
 
-Data structure and file I/O for directed graphs.
+Data structure, algorithms and file I/O for directed graphs.
 
 Module path: `Exa.Graf`
 
@@ -37,8 +37,15 @@ Functions to find:
 - vertex degrees
 - neighborhoods
 - reachability sets
+- frontier sets
 - degree histograms (1D, 2D, 3D)
 - connected components (weak & strong)
+- condensed components
+
+Utilities based on depth-first search (DFS):
+- spanning forest
+- forest traversal
+- preorder/postorder
 
 Build 1D, 2D and 3D histograms from vertex degrees.
 Use the 3D in-self-out adjacency histogram
@@ -97,8 +104,7 @@ Operations that mutate graphs are:
   - `add/2`
   - `delete/2`
   - `join/3` 1st argument only
-  - `contract_edge/2`
-  - `contract_linear/2` and `contract_linears/1`
+  - `contract_xxx` for edges, linears, nodes, etc.
   
 Dig graphs should call `delete/1` to delete the graph resources
 stored in ETS. Deleting an adj graph is a no-op.

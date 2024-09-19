@@ -6,6 +6,7 @@ defmodule Exa.Graf.GrafTest do
   import Exa.Graf.Graf
 
   alias Exa.Std.Mol
+  alias Exa.Std.Mos
 
   @in_dir Path.join(["test", "input", "graf", "adj"])
 
@@ -192,7 +193,7 @@ defmodule Exa.Graf.GrafTest do
 
   test "tree" do
     Enum.each([:adj, :dig], fn tag ->
-      # the 5,3 edge is reversed, so not a strong tree
+      # the 5,3 edge is transposed, so not a strong tree
       g = build(tag, "tree", [{1, 2}, {1, 3}, {3, 4}, {5, 3}])
 
       assert MapSet.new([1, 2, 3, 4]) == reachable(g, 1)
@@ -200,10 +201,33 @@ defmodule Exa.Graf.GrafTest do
       assert MapSet.new([1, 3, 4, 5]) == reachable(g, 4, :in)
       assert MapSet.new([1, 3, 4, 5]) == reachable(g, 3, :in_out)
       assert connected?(g, :weak)
-      assert tree?(g)
+      assert tree?(g, :weak)
+      assert not tree?(g, :strong)
 
-      g = delete(g, {1, 2})
-      assert not tree?(g)
+      gtrans = transpose(g)
+      assert 1 == ncomp(gtrans, :weak)
+      assert connected?(gtrans, :weak)
+      assert tree?(gtrans, :weak)
+      assert not tree?(gtrans, :strong)
+
+      g = delete(g, {1, 3})
+      assert not tree?(g, :weak)
+
+      # the 5,3 edge is aligned, so it is a strong tree
+      g = build(tag, "tree", [{1, 2}, {1, 3}, {3, 4}, {3, 5}])
+
+      assert MapSet.new([1, 2, 3, 4, 5]) == reachable(g, 1)
+      assert MapSet.new([5]) == reachable(g, 5)
+      assert MapSet.new([1, 3, 4]) == reachable(g, 4, :in)
+      assert MapSet.new([1, 3, 4, 5]) == reachable(g, 3, :in_out)
+      assert connected?(g, :weak)
+      assert tree?(g, :weak)
+      assert tree?(g, :strong)
+      assert tree?(transpose(g), :weak)
+      assert not tree?(transpose(g), :strong)
+
+      g = delete(g, {1, 3})
+      assert not tree?(g, :weak)
     end)
   end
 
@@ -232,24 +256,67 @@ defmodule Exa.Graf.GrafTest do
   end
 
   test "scc" do
-    # wikipedia SCC example graph, plus a standalone vertex
+    # wikipedia SCC example graph, plus a standalone vertex and a self-loop
     for tag <- [:adj, :dig] do
-    g = new(tag, "scc") 
-        |> add([{1,2,3,1}, {4,5,6,5,4}, {7,8,7}, 9])
-        |> add([{2,7}, {3,7}, {4,8}, {6,8}])
+      g =
+        new(tag, "scc")
+        |> add([{1, 2, 3, 1}, {4, 5, 6, 5, 4}, {7, 8, 7}, 9, {10, 10}])
+        |> add([{2, 7}, {3, 7}, {4, 8}, {6, 8}])
 
-    comps = components(g, :strong)
-    assert 4 == ncomp(g, :strong)
-    assert 4 == map_size(comps)
-    assert %{ 1 => [1,2,3], 4 => [4,5,6], 7 => [7,8], 9 => [9]} == Mol.sort(comps)
-  end
+      comps = components(g, :strong)
+      assert 5 == ncomp(g, :strong)
+      assert 5 == map_size(comps)
+
+      assert %{
+               1 => [1, 2, 3],
+               4 => [4, 5, 6],
+               7 => [7, 8],
+               9 => [9],
+               10 => [10]
+             } == Mol.sort(comps)
+
+      con = condensation(g)
+      assert [1, 4, 7, 9, 10] == con |> verts() |> Enum.sort()
+      assert [{1, 7}, {4, 7}] == con |> edges() |> Enum.sort()
+    end
   end
 
-  test "reverse" do
+  test "frontiers" do
+    for tag <- [:adj, :dig] do
+      g =
+        new(tag, "front")
+        |> add([{1, 2, 3, 1}, {4, 5, 6, 5, 4}, {7, 8, 7}])
+        |> add([{2, 7}, {3, 7}, {4, 8}, {6, 8}])
+
+      fronts = frontiers(g, 1, :out)
+
+      assert %{
+               0 => MapSet.new([1]),
+               1 => MapSet.new([2]),
+               2 => MapSet.new([3, 7]),
+               3 => MapSet.new([8])
+             } == fronts
+
+      fronts = frontiers(g, 4, :out)
+
+      assert %{
+               0 => MapSet.new([4]),
+               1 => MapSet.new([5, 8]),
+               2 => MapSet.new([6, 7])
+             } == fronts
+
+      fronts = frontiers(g, 1, :in_out)
+      fverts = Mos.union_values(fronts)
+      verts = g |> verts() |> MapSet.new()
+      assert MapSet.equal?(verts, fverts)
+    end
+  end
+
+  test "transpose" do
     for tag <- [:adj, :dig] do
       g = new(tag, "cyc3") |> add({1, 2, 3, 1, 1})
-      rev = reverse(g)
-      assert "cyc3_rev" == name(rev)
+      rev = transpose(g)
+      assert "cyc3_transpose" == name(rev)
       assert [1, 2, 3] == rev |> verts() |> Enum.sort()
       assert [{1, 1}, {1, 3}, {2, 1}, {3, 2}] == rev |> edges() |> Enum.sort()
     end
@@ -282,11 +349,11 @@ defmodule Exa.Graf.GrafTest do
     pB = add(peter, {5, 5})
     assert :undecided == isomorphic?(pA, pB)
 
-    retep = reverse(peter)
+    retep = transpose(peter)
     assert :undecided == isomorphic?(peter, retep)
 
     # first example where the 0,1 hop hashes are different
-    # 4-cycle with 2 handles, one in reversed direction
+    # 4-cycle with 2 handles, one in transposed direction
     cychan = new(:adj, "cychan") |> add([{1, 2, 3, 4, 1}, {4, 5}, {5, 1}])
     cychanA = add(cychan, [{3, 6}, {6, 2}])
     cychanB = add(cychan, [{6, 3}, {2, 6}])

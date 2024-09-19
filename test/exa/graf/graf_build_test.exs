@@ -47,7 +47,7 @@ defmodule Exa.Graf.GrafBuildTest do
       assert MapSet.new([1]) == Graf.reachable(g, 1)
       assert MapSet.new([5]) == Graf.reachable(g, 5)
       assert 10 == Graf.ncomp(g, :weak)
-      assert Enum.reduce(1..10, %{}, &Map.put(&2, &1, [&1])) == comps
+      assert Enum.reduce(1..10, %{}, &Map.put(&2, &1, MapSet.new([&1]))) == comps
     end
   end
 
@@ -61,7 +61,7 @@ defmodule Exa.Graf.GrafBuildTest do
     for g <- graphs do
       comps = Graf.components(g, :weak)
       assert Graf.connected?(g, :weak)
-      assert Graf.tree?(g)
+      assert Graf.tree?(g, :weak)
       assert :source == Graf.classify(g, 1)
       assert :linear == Graf.classify(g, 2)
       assert :sink == Graf.classify(g, 10)
@@ -82,11 +82,11 @@ defmodule Exa.Graf.GrafBuildTest do
     for g <- graphs do
       comps = Graf.components(g, :weak)
       assert Graf.connected?(g, :weak)
-      assert not Graf.tree?(g)
+      assert not Graf.tree?(g, :weak)
       assert :linear == Graf.classify(g, 1)
       assert MapSet.new(1..10) == Graf.reachable(g, 1)
       assert MapSet.new(1..10) == Graf.reachable(g, 5)
-      assert %{1 => Range.to_list(1..10)} == Mol.sort(comps)
+      assert %{1 => MapSet.new(1..10)} == comps
     end
   end
 
@@ -124,7 +124,7 @@ defmodule Exa.Graf.GrafBuildTest do
     for g <- graphs do
       comps = Graf.components(g, :weak)
       assert Graf.connected?(g, :weak)
-      assert not Graf.tree?(g)
+      assert not Graf.tree?(g, :weak)
       assert MapSet.new(1..10) == Graf.reachable(g, 1)
       assert MapSet.new(2..10) == Graf.reachable(g, 2)
       assert 1 = Graf.ncomp(g, :weak)
@@ -143,7 +143,7 @@ defmodule Exa.Graf.GrafBuildTest do
       assert @n * (@n - 1) == Graf.nedge(g)
       comps = Graf.components(g, :weak)
       assert Graf.connected?(g, :weak)
-      assert not Graf.tree?(g)
+      assert not Graf.tree?(g, :weak)
       assert :complex == Graf.classify(g, 1)
       assert :complex == Graf.classify(g, 5)
 
@@ -173,7 +173,7 @@ defmodule Exa.Graf.GrafBuildTest do
 
     for g <- graphs do
       assert Graf.connected?(g, :weak)
-      assert not Graf.tree?(g)
+      assert not Graf.tree?(g, :weak)
       assert MapSet.new(1..12) == Graf.reachable(g, 1)
       assert MapSet.new(1..12) == Graf.reachable(g, 7)
       assert %{1 => Range.to_list(1..12)} == Mol.sort(Graf.components(g, :weak))

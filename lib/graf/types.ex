@@ -4,7 +4,8 @@ defmodule Exa.Graf.Types do
   import Exa.Types
   alias Exa.Types, as: E
 
-  alias Exa.Std.Mos, as: M
+  alias Exa.Std.Mol, as: Mol
+  alias Exa.Std.Mos, as: Mos
 
   # graf format ----------
 
@@ -51,7 +52,7 @@ defmodule Exa.Graf.Types do
 
   Isolated vertices have an entry with the empty set.
   """
-  @type adjmap() :: M.mos(vert(), vert())
+  @type adjmap() :: Mos.mos(vert(), vert())
 
   @typedoc "In and out adjacency maps."
   @type adjmaps() :: {inadj :: adjmap(), outadj :: adjmap()}
@@ -101,10 +102,6 @@ defmodule Exa.Graf.Types do
   A named Erlang digraph.
 
   Graph elements are stored in ETS.
-
-  The graph may be `:cyclic` or `:acyclic`.
-
-  Self-loops are allowed for cyclic graphs.
 
   Repeated edges are not supported.
   """
@@ -159,6 +156,8 @@ defmodule Exa.Graf.Types do
   """
   @type adjacency() :: :in | :out | :in_out | :in_self_out
 
+  defguard is_adjacency(a) when a in [:in, :out, :in_out, :in_self_out]
+
   @typedoc """
   The number of hops in a path through the graph.
 
@@ -172,7 +171,33 @@ defmodule Exa.Graf.Types do
 
   """
   @type nhop() :: E.count() | :infinity
+
   defguard is_nhop(n) when is_count(n) or n == :infinity
+
+  @typedoc """
+  The frontiers at increasing hops (radius) from a vertex.
+
+  A frontier at distance _nhop_ is the set difference 
+  of the reachable sets at distances `nhop` and `nhop-1`.
+
+  The 0th frontier is just the vertex itself.
+
+  Subsequent frontiers are the vertices included in the next hop
+  which have not already been reached. 
+
+  The frontier index does not contain any empty frontier values.
+
+  The union of all frontier values is the total reachable set
+  for that nhop distance.
+
+  If the graph is a single connected component (weak/in_out, strong/out)
+  then the union of an infinite frontier search 
+  will include all vertices in the graph.
+
+  Frontiers are disjoint, 
+  there is no vertex that appears in more than one frontier.
+  """
+  @type frontiers() :: %{E.count() => vset()}
 
   @typedoc """
   Connectivity for components:
@@ -218,15 +243,6 @@ defmodule Exa.Graf.Types do
           | :self_linear
           | :complex
 
-  @typedoc """
-  Cyclicity property for the whole graph:
-  - `:cyclic` general directed graph, allow cycles and self-loops
-  - `:acyclic` _Directed Acyclic Graph_ (DAG), no cycles or self-loops
-  """
-  @type cyclicity() :: :cyclic | :acyclic
-
-  defguard is_cyc(cyc) when cyc in [:cyclic, :acyclic]
-
   # path ----------
 
   @typedoc """
@@ -260,19 +276,44 @@ defmodule Exa.Graf.Types do
   # components ----------
 
   @typedoc """
+  A component is identified by its lowest vertex id.
+  """
+  @type comp_id() :: vert()
+
+  @typedoc """
   A component is a weakly/strongly connected set of vertices.
 
   We choose the minimum vertex id in the component 
   as the component id.
 
   A component index is a map from the component id
-  to the list of distinct vertices in the component.
-
-  See also:
-  - `Exa.Std.Mol.sort/1` to sort the component ids
-  - `Exa.Std.Mos.from_mol/1` to convert to vertex sets
+  to the set of distinct vertices in the component.
   """
-  @type components() :: Exa.Std.Mol.mol(vert(), vert())
+  @type components() :: Exa.Std.Mos.mos(comp_id(), vert())
+
+  @typedoc """
+  An index of the component id for every vertex.
+
+  The index is the inverse of the components map.
+  """
+  @type component_index() :: %{vert() => comp_id()}
+
+  @typedoc """
+  A spanning forest is a sequence of directed rooted trees.
+  The forest includes all vertices, but only a subset of the edges.
+
+  The forest is represented as a map of vertices 
+  to a list of their outgoing directed tree edges (MoL).
+
+  Leaf vertices with no outgoing tree edges 
+  do not have an entry in the forest.
+
+  There is a special key `:forest` that 
+  contains a list of the roots of the trees.
+  """
+  @type forest() :: Mol.mol(:forest | G.vert(), G.vert())
+
+  defguard is_forest(f) when is_map(f) and is_map_key(f, :forest)
 
   # hash ----------
 

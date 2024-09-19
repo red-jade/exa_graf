@@ -49,7 +49,7 @@ defmodule Exa.Graf.Adj do
   @behaviour Exa.Graf.API
 
   @impl true
-  def new(:adj, gname, _cyc \\ :cyclic) when is_gname(gname) do
+  def new(:adj, gname) when is_gname(gname) do
     {:adj, gname, {Mos.new(), Mos.new()}}
   end
 
@@ -197,35 +197,43 @@ defmodule Exa.Graf.Adj do
   def verts({:adj, _, {_, outadj}}), do: Map.keys(outadj)
 
   @impl true
+  def some_vert({:adj, _, {_, outadj}}) when map_size(outadj) != 0 do
+    [{i, _}] = Enum.take(outadj, 1)
+    i
+  end
+
+  @impl true
   def edges({:adj, _, {_, outadj}}) do
+    # each adjmap contains all edges, so just pick one ...
     Enum.reduce(outadj, [], fn {src, dset}, es ->
       Enum.reduce(dset, es, fn dst, es -> [{src, dst} | es] end)
     end)
   end
 
   @impl true
-  def reverse({:adj, name, {inadj, outadj}}) do
-    {:adj, name <> "_rev", {outadj, inadj}}
+  def transpose({:adj, name, {inadj, outadj}}) do
+    {:adj, name <> "_transpose", {outadj, inadj}}
   end
 
   @impl true
+
   def degree({:adj, _, {inadj, _}}, i, _) when not is_map_key(inadj, i) do
     {:error, "Vertex #{i} does not exist"}
   end
 
-  def degree({:adj, _, {inadj, _}}, i, :in) when is_vert(i) do
+  def degree({:adj, _, {inadj, _}}, i, :in) do
     Mos.size(inadj, i)
   end
 
-  def degree({:adj, _, {_, outadj}}, i, :out) when is_vert(i) do
+  def degree({:adj, _, {_, outadj}}, i, :out) do
     Mos.size(outadj, i)
   end
 
-  def degree({:adj, _, {inadj, outadj}}, i, :in_out) when is_vert(i) do
+  def degree({:adj, _, {inadj, outadj}}, i, :in_out) do
     {Mos.size(inadj, i), Mos.size(outadj, i)}
   end
 
-  def degree({:adj, _, {inadj, outadj}}, i, :in_self_out) when is_vert(i) do
+  def degree({:adj, _, {inadj, outadj}}, i, :in_self_out) do
     # test for self edge
     if Mos.member?(outadj, i, i) do
       {Mos.size(inadj, i) - 1, 1, Mos.size(outadj, i) - 1}
@@ -240,22 +248,26 @@ defmodule Exa.Graf.Adj do
     {:error, "Vertex #{i} does not exist"}
   end
 
-  def neighborhood({:adj, _, {inadj, _}}, i, :in) when is_vert(i) do
+  def neighborhood({:adj, _, {inadj, _}}, i, :in) do
     Mos.get(inadj, i)
   end
 
-  def neighborhood({:adj, _, {_, outadj}}, i, :out) when is_vert(i) do
+  def neighborhood({:adj, _, {_, outadj}}, i, :out) do
     Mos.get(outadj, i)
   end
 
-  def neighborhood({:adj, _, {inadj, outadj}}, i, :in_out) when is_vert(i) do
+  def neighborhood({:adj, _, {inadj, outadj}}, i, :in_out) do
     {Mos.get(inadj, i), Mos.get(outadj, i)}
   end
 
-  def neighborhood({:adj, _, {inadj, outadj}}, i, :in_self_out) when is_vert(i) do
+  def neighborhood({:adj, _, {inadj, outadj}}, i, :in_self_out) do
     # test for self edge
     if Mos.member?(outadj, i, i) do
-      {inadj |> Mos.get(i) |> MapSet.delete(i), i, outadj |> Mos.get(i) |> MapSet.delete(i)}
+      {
+        inadj |> Mos.get(i) |> MapSet.delete(i),
+        i,
+        outadj |> Mos.get(i) |> MapSet.delete(i)
+      }
     else
       {Mos.get(inadj, i), nil, Mos.get(outadj, i)}
     end
@@ -269,35 +281,35 @@ defmodule Exa.Graf.Adj do
 
     # build a map of every vert to its component id
     # initially, it will be i => i for every vert
-    comps = Enum.reduce(verts, %{}, &Map.put(&2, &1, &1))
+    index = Enum.reduce(verts, %{}, &Map.put(&2, &1, &1))
+    comps = Enum.reduce(verts, Mos.new(), &Mos.add(&2, &1, &1))
 
-    # for every edge, set the components to the lowest vert id
-    comps =
-      Enum.reduce(outadj, comps, fn {src, dset}, comps ->
-        csrc = Map.fetch!(comps, src)
-
-        Enum.reduce(dset, comps, fn dst, comps ->
-          cdst = Map.fetch!(comps, dst)
+    # for every edge, merge the components to the lowest comp id
+    {_index, comps} =
+      Enum.reduce(outadj, {index, comps}, fn {src, dset}, acc ->
+        Enum.reduce(dset, acc, fn dst, {index, _} = acc ->
+          csrc = Map.fetch!(index, src)
+          cdst = Map.fetch!(index, dst)
 
           cond do
-            csrc == cdst -> comps
-            csrc < cdst -> Map.put(comps, dst, csrc)
-            cdst < csrc -> Map.put(comps, src, cdst)
+            csrc == cdst -> acc
+            csrc < cdst -> merge_comp(acc, csrc, cdst)
+            cdst < csrc -> merge_comp(acc, cdst, csrc)
           end
         end)
       end)
 
-    # note this returns lists (MoL) not sets (MoS)
-    Exa.Map.invert(comps)
+    comps
   end
 
   def components({:adj, _, {inadj, outadj}}, :strong) do
     do_scc(inadj, outadj, inadj |> Map.keys() |> MapSet.new(), %{})
   end
 
+  @spec do_scc(G.adjmap(), G.adjmap(), G.vset(), G.components()) :: G.components()
   defp do_scc(inadj, outadj, vset, comps) do
-    # Tarjan is faster, but reachability is easy ....
-    # reachability intersection from any vertex 
+    # Tarjan is faster (see dfs forest), reachability is easier:
+    # in /\ out reachability intersection from any vertex 
     # is guaranteed to find an scc 
     # even if the vertex is isolated and is its own scc
     if MapSet.size(vset) == 0 do
@@ -306,9 +318,9 @@ defmodule Exa.Graf.Adj do
       [i] = Enum.take(vset, 1)
       ins = do_reach(MapSet.new(), inadj, i, -1)
       outs = do_reach(MapSet.new(), outadj, i, -1)
-      comp = MapSet.intersection(ins, outs) 
+      comp = MapSet.intersection(ins, outs)
       cid = Exa.Set.min(comp)
-      new_comps = Map.put(comps, cid, MapSet.to_list(comp))
+      new_comps = Map.put(comps, cid, comp)
       new_vset = MapSet.difference(vset, comp)
       do_scc(inadj, outadj, new_vset, new_comps)
     end
@@ -316,37 +328,80 @@ defmodule Exa.Graf.Adj do
 
   @impl true
 
-  def reachable({:adj, _, {inadj, _}}, i, :in, nhop) when is_vert(i) do
-    # reaching to this vertex
-    do_reach(MapSet.new(), inadj, i, nhop(nhop))
+  def reachable({:adj, _, {inadj, _}}, i, :in, :infinity) do
+    do_reach(MapSet.new(), inadj, i, -1)
   end
 
-  def reachable({:adj, _, {_, outadj}}, i, :out, nhop) when is_vert(i) do
-    # reachable from this vertex
-    do_reach(MapSet.new(), outadj, i, nhop(nhop))
+  def reachable({:adj, _, {inadj, _}}, i, :in, nhop) do
+    do_reach(MapSet.new(), inadj, i, nhop)
   end
 
-  def reachable(g, i, adjy, nhop) when is_vert(i) and adjy in [:in_out, :in_self_out] do
+  def reachable({:adj, _, {_, outadj}}, i, :out, :infinity) do
+    do_reach(MapSet.new(), outadj, i, -1)
+  end
+
+  def reachable({:adj, _, {_, outadj}}, i, :out, nhop) do
+    do_reach(MapSet.new(), outadj, i, nhop)
+  end
+
+  def reachable(g, i, adjy, nhop) when adjy in [:in_out, :in_self_out] do
     MapSet.union(reachable(g, i, :in, nhop), reachable(g, i, :out, nhop))
   end
 
+  # expand reachability by frontier
+  # count down to zero remaining hops (-ve for infinite target)
+  # or stop when frontier is empty
   @spec do_reach(MapSet.t(), G.adjmap(), G.vert(), integer()) :: MapSet.t()
 
   defp do_reach(reach, _adj, i, 0), do: MapSet.put(reach, i)
 
   defp do_reach(reach, adj, i, n) do
     reach = MapSet.put(reach, i)
-
-    adj
-    |> Map.fetch!(i)
-    |> MapSet.difference(reach)
-    # frontier - if empty, will immediately pass through current reach
-    |> Enum.reduce(reach, fn j, reach -> do_reach(reach, adj, j, n - 1) end)
+    front = adj |> Map.fetch!(i) |> MapSet.difference(reach)
+    Enum.reduce(front, reach, fn j, reach -> do_reach(reach, adj, j, n - 1) end)
   end
 
-  @spec nhop(G.nhop()) :: integer()
-  defp nhop(:infinity), do: -1
-  defp nhop(nhop) when is_count(nhop), do: nhop
+  @impl true
+  def condensation({:adj, gname, gadjs} = g) do
+    comps = components(g, :strong)
+    index = comp_index(comps)
+
+    {
+      :adj,
+      gname <> "_condensation",
+      Enum.reduce(comps, {%{}, %{}}, fn {cid, vset}, hadjs ->
+        hadjs |> do_add(cid) |> condense(gadjs, index, cid, vset)
+      end)
+    }
+  end
+
+  @spec condense(G.adjmaps(), G.adjmaps(), G.component_index(), G.comp_id(), G.vset()) ::
+          G.graph()
+  defp condense(hadjs, {ginadj, goutadj}, index, icid, vset) do
+    Enum.reduce(vset, hadjs, fn i, hadjs ->
+      hadjs =
+        ginadj
+        |> Mos.get(i)
+        |> MapSet.difference(vset)
+        |> Enum.reduce(MapSet.new(), fn jin, edges ->
+          jcid = Map.fetch!(index, jin)
+          MapSet.put(edges, {jcid, icid})
+        end)
+        |> Enum.reduce(hadjs, &do_add(&2, &1))
+
+      hadjs =
+        goutadj
+        |> Mos.get(i)
+        |> MapSet.difference(vset)
+        |> Enum.reduce(MapSet.new(), fn jout, edges ->
+          jcid = Map.fetch!(index, jout)
+          MapSet.put(edges, {icid, jcid})
+        end)
+        |> Enum.reduce(hadjs, &do_add(&2, &1))
+
+      hadjs
+    end)
+  end
 
   # --------------
   # adj functions
@@ -356,7 +411,7 @@ defmodule Exa.Graf.Adj do
   @spec from_adj_file(E.filename()) :: G.adj() | {:error, any}
   def from_adj_file(filename) when is_filename(filename) do
     Exa.File.ensure_file!(filename)
-    Logger.info("Read  AGR file: #{filename}")
+    Logger.info("Read  ADJ file: #{filename}")
     filename |> Code.eval_file() |> elem(0)
   rescue
     err -> {:error, err}
@@ -383,5 +438,32 @@ defmodule Exa.Graf.Adj do
     to_string(path)
   rescue
     err -> {:error, err}
+  end
+
+  # -----------------
+  # private functions
+  # -----------------
+
+  @typep index_comp() :: {G.component_index(), G.components()}
+
+  # generate a component index from a component list
+  # slightly simplified and optimized version of Mos.invert
+  @spec comp_index(G.components()) :: G.component_index()
+  defp comp_index(comps) do
+    Enum.reduce(comps, %{}, fn {cid, vset}, index ->
+      Enum.reduce(vset, index, &Map.put(&2, &1, cid))
+    end)
+  end
+
+  # merge two components using an index and the component list
+  @spec merge_comp(index_comp(), G.vert(), G.vert()) :: index_comp()
+  defp merge_comp({index, comps}, cidlo, cidhi) when cidlo < cidhi do
+    {
+      # for all vertices in the hi comp, 
+      # set index to the new lo comp id 
+      comps |> Mos.get(cidhi) |> Enum.reduce(index, &Map.put(&2, &1, cidlo)),
+      # set the lo comp to union with hi comp, delete hi comp
+      Mos.merge(comps, cidlo, cidhi)
+    }
   end
 end

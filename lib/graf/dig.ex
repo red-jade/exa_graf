@@ -2,11 +2,7 @@ defmodule Exa.Graf.Dig do
   @moduledoc """
   Utilities for directed graphs using the Erlang _digraph_ library.
 
-  The graph may be:
-  - _cyclic_ generalized directed graph: allow cycles and self-loops
-  - _acyclic_ 'Directed Acyclic Graph' (DAG): no cycles or self-loops
-
-  Repeated edges are not allowed. 
+  The graph may be cyclic. Repeated edges are not allowed. 
   There is at most one edge between the same ordered pair of vertices.
 
   The _digraph_ library stores vertex and edges data in ETS.
@@ -45,6 +41,8 @@ defmodule Exa.Graf.Dig do
   import Exa.Graf.Types
   alias Exa.Graf.Types, as: G
 
+  alias Exa.Std.Mos
+
   # ---------
   # behaviour
   # ---------
@@ -52,8 +50,8 @@ defmodule Exa.Graf.Dig do
   @behaviour Exa.Graf.API
 
   @impl true
-  def new(:dig, gname, cyc \\ :cyclic) when is_gname(gname) and is_cyc(cyc) do
-    {:dig, gname, :digraph.new([cyc, :private])}
+  def new(:dig, gname) when is_gname(gname) do
+    {:dig, gname, :digraph.new([:cyclic, :private])}
   end
 
   @impl true
@@ -66,33 +64,38 @@ defmodule Exa.Graf.Dig do
   def nedge({:dig, _, dig}), do: :digraph.no_edges(dig)
 
   @impl true
-  def verts({:dig, _, dig}), do: dig |> :digraph.vertices() |> vids()
+  def verts({:dig, _, dig}), do: :digraph.vertices(dig)
 
   @impl true
-  def edges({:dig, _, dig}), do: dig |> :digraph.edges() |> eids(dig)
-
-  @impl true
-  def vert?({:dig, _, dig}, i), do: do_vert?(dig, vmake(i))
-
-  @spec do_vert?(:digraph.graph(), :digraph.vertex()) :: bool()
-  defp do_vert?(dig, iv) do
-    # yes, should use !! here for falsey, but this is clearer
-    case :digraph.vertex(dig, iv) do
-      false -> false
-      _ -> true
-    end
+  def edges({:dig, _, dig}) do
+    Enum.map(:digraph.edges(dig), fn e ->
+      {_id, i, j, _label} = :digraph.edge(dig, e)
+      {i, j}
+    end)
   end
 
   @impl true
-  def edge?({:dig, _, dig}, {i, j}), do: do_edge?(dig, vmake(i), vmake(j))
-
-  @spec do_edge?(:digraph.graph(), :digraph.vertex(), :digraph.vertex()) :: bool()
-  defp do_edge?(dig, iv, jv), do: jv in :digraph.out_neighbours(dig, iv)
+  def some_vert({:dig, _, dig}) do
+    # assured that nvert > 0 so there is at least one vertex
+    # but unfortunately have to fetch all verts just to get one
+    # probably some way to select 1 value from the ets vert table
+    dig |> :digraph.vertices() |> hd()
+  end
 
   @impl true
-  def reverse({:dig, name, _dig} = g) do
-    # TODO - copy cyclicity
-    new(:dig, name <> "_rev")
+  def vert?({:dig, _, dig}, i), do: do_vert?(dig, i)
+
+  defp do_vert?(dig, i), do: !!:digraph.vertex(dig, i)
+
+  @impl true
+  def edge?({:dig, _, dig}, {i, j}), do: do_edge?(dig, i, j)
+
+  defp do_edge?(dig, i, j), do: j in :digraph.out_neighbours(dig, i)
+
+  @impl true
+  def transpose({:dig, name, _dig} = g) do
+    :dig
+    |> new(name <> "_transpose")
     |> add(verts(g))
     |> add(Enum.map(edges(g), fn {i, j} -> {j, i} end))
   end
@@ -100,43 +103,35 @@ defmodule Exa.Graf.Dig do
   @impl true
 
   def degree({:dig, _, dig}, i, :in) when is_vert(i) do
-    iv = vmake(i)
-
-    if do_vert?(dig, iv) do
-      :digraph.in_degree(dig, iv)
+    if do_vert?(dig, i) do
+      :digraph.in_degree(dig, i)
     else
       {:error, "Missing vertex #{i}"}
     end
   end
 
   def degree({:dig, _, dig}, i, :out) when is_vert(i) do
-    iv = vmake(i)
-
-    if do_vert?(dig, iv) do
-      :digraph.out_degree(dig, iv)
+    if do_vert?(dig, i) do
+      :digraph.out_degree(dig, i)
     else
       {:error, "Missing vertex #{i}"}
     end
   end
 
   def degree({:dig, _, dig}, i, :in_out) when is_vert(i) do
-    iv = vmake(i)
-
-    if do_vert?(dig, iv) do
-      {:digraph.in_degree(dig, iv), :digraph.out_degree(dig, iv)}
+    if do_vert?(dig, i) do
+      {:digraph.in_degree(dig, i), :digraph.out_degree(dig, i)}
     else
       {:error, "Missing vertex #{i}"}
     end
   end
 
   def degree({:dig, _, dig}, i, :in_self_out) when is_vert(i) do
-    iv = vmake(i)
-
-    if do_vert?(dig, iv) do
-      indeg = :digraph.in_degree(dig, iv)
-      outs = :digraph.out_neighbours(dig, iv)
+    if do_vert?(dig, i) do
+      indeg = :digraph.in_degree(dig, i)
+      outs = :digraph.out_neighbours(dig, i)
       outdeg = length(outs)
-      if iv in outs, do: {indeg - 1, 1, outdeg - 1}, else: {indeg, 0, outdeg}
+      if i in outs, do: {indeg - 1, 1, outdeg - 1}, else: {indeg, 0, outdeg}
     else
       {:error, "Missing vertex #{i}"}
     end
@@ -145,32 +140,26 @@ defmodule Exa.Graf.Dig do
   @impl true
 
   def neighborhood({:dig, _, dig}, i, :in) when is_vert(i) do
-    iv = vmake(i)
-
-    if do_vert?(dig, iv) do
-      dig |> :digraph.in_neighbours(iv) |> vids() |> MapSet.new()
+    if do_vert?(dig, i) do
+      dig |> :digraph.in_neighbours(i) |> MapSet.new()
     else
       {:error, "Missing vertex #{i}"}
     end
   end
 
   def neighborhood({:dig, _, dig}, i, :out) when is_vert(i) do
-    iv = vmake(i)
-
-    if do_vert?(dig, iv) do
-      dig |> :digraph.out_neighbours(iv) |> vids() |> MapSet.new()
+    if do_vert?(dig, i) do
+      dig |> :digraph.out_neighbours(i) |> MapSet.new()
     else
       {:error, "Missing vertex #{i}"}
     end
   end
 
   def neighborhood({:dig, _, dig}, i, :in_out) when is_vert(i) do
-    iv = vmake(i)
-
-    if do_vert?(dig, iv) do
+    if do_vert?(dig, i) do
       {
-        dig |> :digraph.in_neighbours(iv) |> vids() |> MapSet.new(),
-        dig |> :digraph.out_neighbours(iv) |> vids() |> MapSet.new()
+        dig |> :digraph.in_neighbours(i) |> MapSet.new(),
+        dig |> :digraph.out_neighbours(i) |> MapSet.new()
       }
     else
       {:error, "Missing vertex #{i}"}
@@ -178,11 +167,9 @@ defmodule Exa.Graf.Dig do
   end
 
   def neighborhood({:dig, _, dig}, i, :in_self_out) when is_vert(i) do
-    iv = vmake(i)
-
-    if do_vert?(dig, iv) do
-      ins = dig |> :digraph.in_neighbours(iv) |> vids() |> MapSet.new()
-      outs = dig |> :digraph.out_neighbours(iv) |> vids() |> MapSet.new()
+    if do_vert?(dig, i) do
+      ins = dig |> :digraph.in_neighbours(i) |> MapSet.new()
+      outs = dig |> :digraph.out_neighbours(i) |> MapSet.new()
 
       if MapSet.member?(ins, i) do
         {MapSet.delete(ins, i), i, MapSet.delete(outs, i)}
@@ -206,29 +193,24 @@ defmodule Exa.Graf.Dig do
 
   defp do_add(_dig, []), do: :ok
 
-  defp do_add(dig, i) when is_vert(i) do
-    [~c"$v" | ^i] = :digraph.add_vertex(dig, vmake(i))
-  end
+  defp do_add(dig, i) when is_vert(i), do: :digraph.add_vertex(dig, i)
 
   defp do_add(dig, {i, j} = e) when is_vert(i) and is_vert(j) do
-    iv = vmake(i)
-    jv = vmake(j)
-
-    if do_edge?(dig, iv, jv) do
+    if do_edge?(dig, i, j) do
       # add existing edge not an error
       :ok
     else
-      case :digraph.add_edge(dig, iv, jv) do
+      case :digraph.add_edge(dig, i, j) do
         [:"$e" | _eid] ->
           :ok
 
-        {:error, {:bad_vertex, [~c"$v" | k]}} ->
+        {:error, {:bad_vertex, k}} ->
           # add new vertex and retry, maybe twice
           do_add(dig, k)
           do_add(dig, e)
 
         {:error, {:bad_edge, path}} ->
-          {:error, "Cyclic path #{inspect(vids(path), charlists: :as_lists)}"}
+          {:error, "Cyclic path #{inspect(path, charlists: :as_lists)}"}
       end
     end
   end
@@ -273,17 +255,14 @@ defmodule Exa.Graf.Dig do
 
   defp do_del(dig, i) when is_vert(i) do
     # also deletes all edges incident on the vertex
-    :digraph.del_vertex(dig, vmake(i))
+    :digraph.del_vertex(dig, i)
     :ok
   end
 
   defp do_del(dig, {i, j}) when is_vert(i) and is_vert(j) do
-    iv = vmake(i)
-    jv = vmake(j)
-
-    Enum.reduce_while(:digraph.out_edges(dig, iv), :ok, fn edig, :ok ->
+    Enum.reduce_while(:digraph.out_edges(dig, i), :ok, fn edig, :ok ->
       case :digraph.edge(dig, edig) do
-        {_eid, ^iv, ^jv, _} ->
+        {_eid, ^i, ^j, _} ->
           :digraph.del_edge(dig, edig)
           {:halt, :ok}
 
@@ -323,19 +302,15 @@ defmodule Exa.Graf.Dig do
 
   @impl true
 
-  def components({:dig, _, dig}, :weak) do
-    dig |> :digraph_utils.components() |> do_comps()
-  end
+  def components({:dig, _, dig}, conn) do
+    lol =
+      case conn do
+        :weak -> :digraph_utils.components(dig)
+        :strong -> :digraph_utils.strong_components(dig)
+      end
 
-  def components({:dig, _, dig}, :strong) do
-    dig |> :digraph_utils.strong_components() |> do_comps()
-  end
-
-  @spec do_comps([[:digraph.vertex()]]) :: G.components()
-  defp do_comps(lovs) do
-    Enum.reduce(lovs, %{}, fn vs, comps ->
-      verts = vids(vs)
-      Map.put(comps, Enum.min(verts), verts)
+    Enum.reduce(lol, Mos.new(), fn verts, comps ->
+      Mos.set(comps, Enum.min(verts), verts)
     end)
   end
 
@@ -347,74 +322,58 @@ defmodule Exa.Graf.Dig do
   end
 
   def reachable({:dig, _, dig}, i, :in, :infinity) do
-    [vmake(i)] |> :digraph_utils.reaching(dig) |> vids() |> MapSet.new()
+    [i] |> :digraph_utils.reaching(dig) |> MapSet.new()
   end
 
   def reachable({:dig, _, dig}, i, :out, :infinity) do
-    [vmake(i)] |> :digraph_utils.reachable(dig) |> vids() |> MapSet.new()
+    [i] |> :digraph_utils.reachable(dig) |> MapSet.new()
   end
 
   def reachable({:dig, _, dig}, i, adjy, nhop) when adjy in [:in, :out] and is_count(nhop) do
-    MapSet.new() |> do_reach(dig, vmake(i), adjy, nhop) |> vids() |> MapSet.new()
+    MapSet.new() |> do_reach(dig, i, adjy, nhop) |> MapSet.new()
   end
 
   @spec do_reach(MapSet.t(), :digraph.digraph(), :digraph.vertex(), G.adjacency(), E.count()) ::
           MapSet.t()
 
-  defp do_reach(reach, _dig, iv, _adjy, 0), do: MapSet.put(reach, iv)
+  defp do_reach(reach, _dig, i, _adjy, 0), do: MapSet.put(reach, i)
 
-  defp do_reach(reach, dig, iv, adjy, n) do
-    reach = MapSet.put(reach, iv)
+  defp do_reach(reach, dig, i, adjy, n) do
+    reach = MapSet.put(reach, i)
 
     neighs =
       case adjy do
-        :in -> dig |> :digraph.in_neighbours(iv) |> MapSet.new()
-        :out -> dig |> :digraph.out_neighbours(iv) |> MapSet.new()
+        :in -> dig |> :digraph.in_neighbours(i) |> MapSet.new()
+        :out -> dig |> :digraph.out_neighbours(i) |> MapSet.new()
       end
 
     frontier = MapSet.difference(neighs, reach)
 
     # if frontier is empty, will immediately pass through current reach
-    Enum.reduce(frontier, reach, fn jv, reach ->
-      do_reach(reach, dig, jv, adjy, n - 1)
+    Enum.reduce(frontier, reach, fn j, reach ->
+      do_reach(reach, dig, j, adjy, n - 1)
     end)
   end
 
-  # -----------------
-  # private functions
-  # -----------------
+  @impl true
+  def condensation({:dig, gname, dig}) do
+    con = :digraph_utils.condensation(dig)
+    # new verts are named using list of all old verts in component!
+    # clone the condensed graph, renaming all vertices and edges
+    clone = :digraph.new()
 
-  # convert digraph edges to dig vertex pairs
-  @dialyzer {:no_unused, eids: 2}
-  @spec eids([:digraph.edge()], :digraph.graph()) :: G.edges()
-  defp eids(es, dig) when is_list(es) do
-    Enum.map(es, fn e ->
-      {_id, v1, v2, _label} = :digraph.edge(dig, e)
-      {vid(v1), vid(v2)}
+    vmap =
+      Enum.reduce(:digraph.vertices(con), %{}, fn vlist, vmap ->
+        id = Enum.min(vlist)
+        :digraph.add_vertex(clone, id)
+        Map.put(vmap, vlist, id)
+      end)
+
+    Enum.each(:digraph.edges(con), fn eid ->
+      {_id, v1, v2, _label} = :digraph.edge(con, eid)
+      :digraph.add_edge(clone, Map.fetch!(vmap, v1), Map.fetch!(vmap, v2))
     end)
+
+    {:dig, gname <> "_condensation", clone}
   end
-
-  # extract id from a list of vertices
-  @dialyzer {:no_unused, vids: 1}
-  @spec vids(Enumerable.t(:digraph.vertex())) :: G.verts()
-  defp vids(vs), do: Enum.map(vs, &vid/1)
-
-  # extract the id from a dig vertex
-  @spec vid(:digraph.vertex()) :: G.vert()
-  defp vid([~c"$v" | i]) when is_vert(i), do: i
-
-  # find an existing edge, when the whole edge record is needed
-  @spec efind(:digraph.graph(), G.edge()) :: nil | :digraph.edge()
-  def efind(dig, {i, j}) do
-    jv = vmake(j)
-
-    Enum.find(:digraph.out_edges(dig, vmake(i)), fn eid ->
-      {_eid, _iv, kv, _label} = :digraph.edge(dig, eid)
-      kv == jv
-    end)
-  end
-
-  # create a dig vertex 
-  @spec vmake(G.vert()) :: :digraph.vertex()
-  defp vmake(i) when is_vert(i), do: [~c"$v" | i]
 end
