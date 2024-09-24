@@ -7,6 +7,12 @@ defmodule Exa.Graf.Types do
   alias Exa.Std.Mol, as: Mol
   alias Exa.Std.Mos, as: Mos
 
+  # TODO - remove when get next version of exa_core
+
+  defguard set_size(set) when is_set(set) and map_size(set.map)
+
+  defguard is_set_member(set,x) when is_set(set) and is_map_key(set.map, x )
+
   # graf format ----------
 
   @typedoc "A vertex id is a positive integer."
@@ -215,6 +221,26 @@ defmodule Exa.Graf.Types do
   @type connectivity() :: :weak | :strong
 
   defguard is_conn(c) when c in [:weak, :strong]
+
+  @typedoc """
+  The kinds of search traversal.
+
+  Depth First Search explores children before siblings.
+  DFS follows a single chain forward as far as possible,
+  before backtracking to the most recent ignored edges.
+
+  Breadth First Search explores siblings before children.
+  BFS can be thought of as stepping out in hops from the source.
+  Each frontier is explored in sequence of increasing radius.
+
+  Note that edges are unordered for any given vertex. 
+  So the actual sequence of traversal within any 
+  set of edges for a vertex (children, siblings) 
+  is arbitrary.
+  """
+  @type traversality() :: :dfs | :bfs
+
+  defguard is_trav(fs) when fs in [:dfs, :bfs]
 
   @typedoc """
   Classify a vertex.

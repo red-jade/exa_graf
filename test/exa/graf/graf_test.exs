@@ -203,12 +203,14 @@ defmodule Exa.Graf.GrafTest do
       assert connected?(g, :weak)
       assert tree?(g, :weak)
       assert not tree?(g, :strong)
+      assert is_nil(root(g))
 
       gtrans = transpose(g)
       assert 1 == ncomp(gtrans, :weak)
       assert connected?(gtrans, :weak)
       assert tree?(gtrans, :weak)
       assert not tree?(gtrans, :strong)
+      assert is_nil(root(gtrans))
 
       g = delete(g, {1, 3})
       assert not tree?(g, :weak)
@@ -223,6 +225,7 @@ defmodule Exa.Graf.GrafTest do
       assert connected?(g, :weak)
       assert tree?(g, :weak)
       assert tree?(g, :strong)
+      assert 1 == root(g)
       assert tree?(transpose(g), :weak)
       assert not tree?(transpose(g), :strong)
 

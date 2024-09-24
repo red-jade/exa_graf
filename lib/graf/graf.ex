@@ -39,6 +39,8 @@ defmodule Exa.Graf.Graf do
 
   alias Exa.Graf.Adj
   alias Exa.Graf.Dig
+  alias Exa.Graf.Traverse
+  alias Exa.Graf.Traverse.Visitor
   alias Exa.Graf.DotReader
   alias Exa.Graf.DotWriter, as: DOT
 
@@ -300,42 +302,76 @@ defmodule Exa.Graf.Graf do
   component with `|E| = |V| - 1`.
 
   If the connectivity is `:strong` then the graph is tested 
-  for being a directed rooted tree. 
-  Returns the root vertex if it is a weakly connected tree
-  with a single _root_ source vertex, 
-  from which the whole tree is reachable.
+  for being a directed rooted tree:
+  - weakly-connected tree
+  - strongly connected tree
+  - a single _root_ source vertex can reach the whole tree 
 
   Otherwise return `false`.
 
-  Note that in an undirected tree, 
+  Note that in an undirected weak tree, 
   any vertex can be chosen as the root.
   """
-  @spec tree?(G.graph(), G.connectivity()) :: bool() | G.vert()
+  @spec tree?(G.graph(), G.connectivity()) :: bool()
+  def tree?(g, :weak), do: nedge(g) == nvert(g) - 1 and connected?(g, :weak)
+  def tree?(g, :strong), do: tree?(g, :weak) and is_vert(do_root(g))
 
-  def tree?(g, :weak) when is_graph(g) do
-    nedge(g) == nvert(g) - 1 and connected?(g, :weak)
+  @doc """
+  Find a single source vertex (zero in-degree),
+  which can reach the whole graph along outgoing directed edges.
+
+  For a root to exist, the graph must be a 
+  single weakly-connected component,
+  but not a single strongly-connected component.
+
+  In a single weakly connected component, 
+  any vertex can be chosen as a weakly reachable root.
+
+  In a single strongly connected component,
+  there are no pure sources, 
+  as every vertex has both incoming and outgoing edges,
+  and any vertex can be chosen as a strongly reachable root.
+
+  For a unique root to exist, the graph may be:
+  - directed rooted tree
+  - Directed Acyclic Graph (DAG)
+  - cyclic graph with more than one 
+    strongly connected component.
+  """
+  @spec root(G.graph()) :: nil | G.vert() 
+  def root(g), do: if(connected?(g, :weak), do: do_root(g), else: nil)
+
+  defp do_root(g) do
+    src = some_vert(g)
+    g |> reachable(src, :in) |> Enum.filter(&(degree(g, &1, :in) == 0)) |> is_root(g)
   end
 
-  def tree?(g, :strong) when is_graph(g) do
-    if not tree?(g, :weak) do
-      false
-    else
-      g
-      |> reachable(some_vert(g), :in)
-      |> Enum.filter(&(degree(g, &1, :in) == 0))
-      |> test_sources(g)
-    end
+  defp is_root([root], g) do
+    if g |> reachable(root, :out) |> MapSet.size() == nvert(g), do: root, else: nil
   end
 
-  defp test_sources([root], g) do
-    if MapSet.size(reachable(g, root, :out)) == nvert(g) do
-      root
-    else
-      false
-    end
-  end
+  defp is_root(_, _), do: nil
 
-  defp test_sources(_, _), do: false
+  @doc """
+  Test if the graph contains a cycle.
+
+  A `:weak` cycle means a cycle of any edges, 
+  ignoring direction, as if the graph was undirected.
+
+  A `:strong` cycle means the cycle 
+  is aligned with the directions of the edges.
+
+  A self-loop is always a cycle.
+
+  An empty graph is not cyclic.
+
+  Use depth-first search to build spanning trees and test for cycles.
+  A cycle is present if:
+  - `:weak` an edge to another vertex in the same tree (connected component)
+  - `:strong` a reverse edge back to an ancestor in the same tree
+  """
+  @spec cyclic?(G.graph(), G.connectivity()) :: bool()
+  def cyclic?(g, conn) when is_graph(g) and is_conn(conn), do: Traverse.cycle?(g, conn)
 
   @doc """
   Get a map of frontiers at different hops (radius) from a vertex.
@@ -375,50 +411,33 @@ defmodule Exa.Graf.Graf do
     if not vert?(g, i) do
       {:error, "Vertex #{i} does not exist"}
     else
-      reach = MapSet.new([i])
-      do_frontier(g, reach, adjy, 0, nhop, %{0 => reach})
+      reach = MapSet.new([i]) 
+      do_frontier(reach, g, adjy, 0, nhop, %{0 => reach})
     end
   end
 
   # count up to nhop target (never grows equal to :infinity)
-  @spec do_frontier(G.graph(), MapSet.t(), G.adjacency(), E.count(), G.nhop(), G.frontiers()) ::
+  @spec do_frontier(MapSet.t(), G.graph(), G.adjacency(), E.count(), G.nhop(), G.frontiers()) ::
           G.frontiers()
 
-  defp do_frontier(_g, _reach, _adjy, nhop, nhop, fronts), do: fronts
+  defp do_frontier(_reach, _g, _adjy, nhop, nhop, fronts), do: fronts
 
-  defp do_frontier(g, reach, adjy, n, nhop, fronts) when is_map_key(fronts, n) do
+  defp do_frontier(reach, g, adjy, n, nhop, fronts) when is_map_key(fronts, n) do
     front =
       fronts
       |> Map.fetch!(n)
-      |> Enum.reduce(MapSet.new(), fn j, fs ->
-        g |> hop(j, adjy) |> MapSet.union(fs)
-      end)
+      |> Enum.reduce(MapSet.new(), fn j, fs -> 
+           g |> reachable(j, adjy, 1) |> MapSet.union(fs) 
+         end)
       |> MapSet.difference(reach)
 
     if MapSet.size(front) == 0 do
       fronts
     else
       n1 = n + 1
-      new_reach = MapSet.union(reach, front)
       new_fronts = Map.put(fronts, n1, front)
-      do_frontier(g, new_reach, adjy, n1, nhop, new_fronts)
+      reach |> MapSet.union(front) |> do_frontier(g, adjy, n1, nhop, new_fronts)
     end
-  end
-
-  # union of neighborhoods for one hop
-  @spec hop(G.graph(), G.vert(), G.adjacency()) :: G.vset()
-
-  defp hop(g, i, adjy) when adjy in [:in, :out], do: neighborhood(g, i, adjy)
-
-  defp hop(g, i, :in_out) do
-    {ins, outs} = neighborhood(g, i, :in_out)
-    MapSet.union(ins, outs)
-  end
-
-  defp hop(g, i, :in_self_out) do
-    {ins, self, outs} = neighborhood(g, i, :in_self_out)
-    hop = MapSet.union(ins, outs)
-    if is_nil(self), do: hop, else: MapSet.put(hop, i)
   end
 
   @doc """
@@ -909,184 +928,6 @@ defmodule Exa.Graf.Graf do
     i
   end
 
-  # ---
-  # DFS
-  # ---
-
-  # depth-first traversal data
-  @typep dfs() :: {unvisited :: G.vset(), dff :: G.forest()}
-
-  @doc """
-  Build a spanning forest for the graph.
-  A spanning forest is a sequence of directed rooted trees.
-  The forest includes all vertices, but only a subset of the edges.
-
-  Three classes of edges are excluded:
-  - reverse: to ancestors within the tree
-  - forward: to non-ancestors on other branches within the tree 
-  - cross: from a later tree to an earlier tree
-
-  By construction, there are no _forward cross_ edges
-  from earlier trees to later trees.
-
-  The forest is represented as a map of vertices 
-  to a list of their outgoing directed tree edges.
-  Leaf vertices with no outgoing tree edges 
-  do not have an entry in the forest.
-  There is a special key `:forest` that 
-  contains a list of the roots of trees.
-
-  The spanning forest is created by depth-first traversal,
-  so it is often called a _depth-first forest._
-
-  The initial root vertex for the forest may be specified
-  as an argument, otherwise it is picked arbitrarily from the graph.
-  """
-  @spec spanning_forest(G.graph(), nil | G.vert()) :: G.forest()
-  def spanning_forest(g, root \\ nil)
-      when is_graph(g) and
-             (is_nil(root) or is_vert(root)) do
-    vs = g |> verts() |> MapSet.new()
-
-    if not is_nil(root) and not MapSet.member?(vs, root) do
-      raise ArgumentError, message: "Root #{root} does not exist"
-    end
-
-    do_tree(g, {vs, Mol.new()}, root)
-  end
-
-  @spec do_tree(G.graph(), dfs(), nil | G.vert()) :: G.forest()
-  defp do_tree(g, {vs, dff}, root) do
-    i = if is_nil(root), do: vs |> Enum.take(1) |> hd(), else: root
-    dff = Mol.append(dff, :forest, i)
-    {new_vs, new_dff} = dfs = visit(g, i, {vs, dff}, MapSet.new())
-    if MapSet.size(new_vs) == 0, do: new_dff, else: do_tree(g, dfs, nil)
-  end
-
-  @spec visit(G.graph(), G.vert(), dfs(), G.vset()) :: dfs()
-  defp visit(g, i, {vs, dff}, path) do
-    vs = MapSet.delete(vs, i)
-    ipath = MapSet.put(path, i)
-    outs = neighborhood(g, i, :out)
-
-    {{new_vs, new_dff}, js} =
-      Enum.reduce(outs, {{vs, dff}, []}, fn j, {{vs, _} = dfs, js} = acc ->
-        if MapSet.member?(vs, j), do: {visit(g, j, dfs, ipath), [j | js]}, else: acc
-      end)
-
-    {new_vs, Mol.set(new_dff, i, Enum.reverse(js))}
-  end
-
-  # -----------------
-  # traversal visitor
-  # -----------------
-
-  @typedoc "Internal traversal state."
-  @type state() :: any()
-
-  @typedoc "External result returned from a traversal."
-  @type result() :: any()
-
-  @typedoc """
-  Function to initialize the traversal state.
-
-  The function will usually just return a constant inital state, 
-  ignoring the arguments.
-
-  Default implementation is to return `nil`.
-  """
-  @type init_fun() :: (G.graph(), G.forest() -> state())
-
-  @typedoc """
-  Function invoked for a vertex in the forest.
-
-  There are three situations where the function is invoked:
-  - branch node: 
-    - before (pre) traversal of children
-    - after (post) traversal of children
-  - leaf node: during traversal
-
-  The path is the reverse path from the current vertex
-  to the root of the current tree.
-  The current vertex is the head of the path.
-
-  Default implementation passes through the state unchanged.
-  """
-  @type node_fun() :: (G.graph(), G.path(), state() -> state())
-
-  @typedoc """
-  Function to convert the final traversal state to a result.
-
-  Typically this will be a simple reformatting, 
-  such as reversing lists, or discarding completed counters.
-
-  Default implementation is to pass the state through unchanged.
-  """
-  @type final_fun() :: (state() -> result())
-
-  defmodule DefaultFuns do
-    def pass_through(_, _, state), do: state
-    def pass_through(state), do: state
-    def nil_state(_, _), do: nil
-  end
-
-  defmodule ForestVisitor do
-    import DefaultFuns
-
-    defstruct init_state: &nil_state/2,
-              pre_branch: &pass_through/3,
-              post_branch: &pass_through/3,
-              visit_leaf: &pass_through/3,
-              final_result: &pass_through/1
-  end
-
-  @type forest_visitor() :: %ForestVisitor{
-          init_state: init_fun(),
-          pre_branch: node_fun(),
-          post_branch: node_fun(),
-          visit_leaf: node_fun(),
-          final_result: final_fun()
-        }
-
-  defguard is_forvis(v) when is_struct(v, ForestVisitor)
-
-  @doc """
-  Traverse 
-  """
-  @spec traverse(G.graph(), forest_visitor(), nil | G.forest()) :: any()
-
-  def traverse(g, vis, nil) when is_graph(g) do
-    traverse(g, vis, spanning_forest(g))
-  end
-
-  def traverse(g, vis, forest) when is_graph(g) and is_forvis(vis) and is_map(forest) do
-    forest
-    |> Mol.get(:forest)
-    |> Enum.reduce(vis.init_state.(g, forest), fn root, state ->
-      do_traverse(g, vis, forest, root, [], state)
-    end)
-    |> vis.final_result.()
-  end
-
-  defp do_traverse(g, vis, forest, i, path, state) do
-    path = [i | path]
-
-    case Mol.get(forest, i) do
-      [] ->
-        vis.visit_leaf.(g, path, state)
-
-      children ->
-        pre_state = vis.pre_branch.(g, path, state)
-
-        post_state =
-          Enum.reduce(children, pre_state, fn j, state ->
-            do_traverse(g, vis, forest, j, path, state)
-          end)
-
-        vis.post_branch.(g, path, post_state)
-    end
-  end
-
   # --------
   # file I/O
   # --------
@@ -1150,5 +991,134 @@ defmodule Exa.Graf.Graf do
   @spec to_adj_file(G.graph(), E.filename()) :: E.filename() | {:error, any()}
   def to_adj_file(g, outdir) when is_graph(g) and is_filename(outdir) do
     g |> convert(:adj) |> Adj.to_adj_file(outdir)
+  end
+
+  # ----------------
+  # graph traversals
+  # ----------------
+
+  @doc """
+  Build a spanning forest for the graph.
+
+  A spanning forest is a sequence of rooted trees:
+  - weak: arbitrary edge directions
+  - strong: edges directed from the root
+
+  The forest includes all vertices, but only a subset of the edges.
+
+  For weak connectivity, edges are traversed in any direction
+  and the tree does not have consistent edge directions.
+  Any edge that would connect within the same tree is excluded (cycle).
+  There is one tree for each weakly connected component. 
+  There are no cross edges between trees.
+
+  For strong connectivity, edges are only traversed in the 
+  forward direction, and trees are directed from root to leaves. 
+
+  These classes of edges are excluded from the strong forest:
+  - reverse: to ancestors within the same tree (cycles)
+  - forward: to non-ancestors on other branches within the same tree (dag)
+  - reverse cross: from a later tree to an earlier tree
+
+  By construction, there are no _forward cross_ edges
+  from earlier trees to later trees.
+
+  Self-loops do not affect the forest,
+  because the source of the edge is already in the tree.
+
+  The forest is represented as a map of vertices 
+  to a list of their outgoing directed tree edges (MoL).
+  Leaf vertices with no outgoing tree edges 
+  do not have an entry in the forest (MoL empty default semantics).
+  There is a special key `:forest` that 
+  contains a list of the roots of trees.
+
+  The spanning forest is created by a depth-first traversal,
+  so it is often called a _depth-first forest_ (DFF).
+
+  The initial root vertex for the depth-first search may be specified
+  as an argument, otherwise the root is picked arbitrarily from the graph.
+  """
+  @spec spanning_forest(G.graph(), G.connectivity(), nil | G.vert()) :: G.forest()
+  def spanning_forest(g, conn, root \\ nil)
+      when is_graph(g) and (is_nil(root) or is_vert(root)) and is_conn(conn) do
+
+    cb = %Visitor{
+      # a DFF is an Map of Lists; empty stack List of Lists for children
+      init_state: fn _g -> {Mol.new(), [[]]} end,
+      pre_tree: fn {dff, lol}, _g, root -> 
+        # add new root to forest
+        {Mol.append(dff, :forest, root), lol} 
+      end,
+      pre_node: fn {dff, lol}, _g, _i -> 
+        # push an empty list of children onto the stack
+        {dff, [[] | lol]} 
+      end,
+      post_node: fn {dff, [js, is | lol]}, _g, i ->
+        # pop the stack, build the tree adjacency, push i into the parent child list
+        {Mol.set(dff, i, Enum.reverse(js)), [[i | is] | lol]}
+      end,
+      final_result: fn {dff, [_]} -> dff end
+    }
+
+    Traverse.graph(g, :dfs, conn, cb, root)
+  end
+
+  # -----------------
+  # forest traversals
+  # -----------------
+
+  @doc "Print out an indented view of the traversal of a Depth First Forest."
+  @spec dump(G.forest()) :: nil
+  def dump(dff) when is_forest(dff) do
+    Traverse.forest(
+      dff,
+      %Visitor{
+        init_state: fn _ -> ["  "] end,
+        pre_node: fn indent, _g, i ->
+          IO.puts([indent, "#{i} pre"])
+          ["  " | indent]
+        end,
+        visit_node: fn indent, _g, i ->
+          IO.puts([indent, "#{i} leaf"])
+          indent
+        end,
+        post_node: fn indent, _g, i ->
+          indent = tl(indent)
+          IO.puts([indent, "#{i} post"])
+          indent
+        end
+      }
+    )
+  end
+
+  @doc "Get a pre-order traversal sequence of vertices."
+  @spec preorder(G.forest()) :: G.verts()
+  def preorder(dff) when is_forest(dff) do
+    Traverse.forest(
+      dff,
+      %Visitor{
+        init_state:   fn _ -> {[], []} end,
+        pre_node:     fn {path, ord}, _g, i -> {[i | path], [i | ord]} end,
+        visit_node:   fn {path, ord}, _g, i -> {path, [i | ord]} end,
+        post_node:    fn {[_ | path], ord}, _g, _i -> {path, ord} end,
+        final_result: fn {[], ord} -> Enum.reverse(ord) end
+      }
+    )
+  end
+
+  @doc "Get a post-order traversal sequence of vertices."
+  @spec postorder(G.forest()) :: G.verts()
+  def postorder(dff) when is_forest(dff) do
+    Traverse.forest(
+      dff,
+      %Visitor{
+        init_state: fn _ -> {[], []} end,
+        pre_node: fn {path, ord}, _g, i -> {[i | path], ord} end,
+        visit_node: fn {path, ord}, _g, i -> {path, [i | ord]} end,
+        post_node: fn {[_ | path], ord}, _g, i -> {path, [i | ord]} end,
+        final_result: fn {[], ord} -> Enum.reverse(ord) end
+      }
+    )
   end
 end

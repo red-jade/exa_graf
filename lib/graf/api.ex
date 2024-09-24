@@ -109,7 +109,7 @@ defmodule Exa.Graf.API do
   @doc """
   Get the neighbors of a vertex, given an adjacency relationship.
 
-  The source vertex will be included if it has a self-loop:
+  The source vertex will only be included if it has a self-loop:
   - `:in` or `:out` self in the set
   - `:in_out` self in both sets
   - `:in_self_out` self in neither set, 
