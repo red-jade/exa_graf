@@ -40,12 +40,16 @@ Functions to find:
 - frontier sets
 - degree histograms (1D, 2D, 3D)
 - connected components (weak & strong)
-- condensed components
+- condensed strong components
+- tree test and root finder
 
-Utilities based on depth-first search (DFS):
-- spanning forest
+Utilities based on depth-first search (DFS)
+and breadth-first search (BFS):
+- graph traversal
+- spanning forest 
 - forest traversal
 - preorder/postorder
+- cyclic test
 
 Build 1D, 2D and 3D histograms from vertex degrees.
 Use the 3D in-self-out adjacency histogram
