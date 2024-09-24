@@ -211,11 +211,21 @@ defmodule Exa.Graf.Graf do
   end
 
   @doc """
-  Get the source vertices that have no outgoing edges and no self-edge.
+  Get the source vertices that have no incoming edges,
+  but may have a self-loop. 
   """
   @spec sources(G.graph()) :: G.verts()
   def sources(g) when is_graph(g) do
-    g |> verts() |> Enum.filter(fn i -> degree(g, i, :in) == 0 end)
+    Enum.filter(verts(g), fn i -> classify(g, i) in [:source, :self_source] end)
+  end
+
+  @doc """
+  Get the sink vertices that have no outgoing edges,
+  but may have a self-loop. 
+  """
+  @spec sinks(G.graph()) :: G.verts()
+  def sinks(g) when is_graph(g) do
+    Enum.filter(verts(g), fn i -> classify(g, i) in [:sink, :self_sink] end)
   end
 
   @doc """
@@ -288,7 +298,7 @@ defmodule Exa.Graf.Graf do
   @doc """
   Test if a vertex has any edges connected to other vertices.
 
-  Equivalent to the classification being `:isolated` or `:self-isoalted`.
+  Equivalent to the classification being `:isolated` or `:self-isolated`.
   """
   @spec isolated?(G.graph(), G.vert()) :: bool()
   def isolated?(g, i), do: classify(g, i) in [:isolated, :self_isolated]
@@ -317,17 +327,20 @@ defmodule Exa.Graf.Graf do
   def tree?(g, :strong), do: tree?(g, :weak) and is_vert(do_root(g))
 
   @doc """
-  Find a single source vertex (zero in-degree),
-  which can reach the whole graph along outgoing directed edges.
+  Find a single source vertex that can reach 
+  the whole graph along outgoing directed edges.
 
-  For a root to exist, the graph must be a 
+  The root must have zero in-degree, ignoring any self-loop.
+  A vertex with a self-loop can be a directed root,
+
+  For a unique root to exist, the graph must be a 
   single weakly-connected component,
   but not a single strongly-connected component.
 
-  In a single weakly connected component, 
+  In a single weakly-connected component, 
   any vertex can be chosen as a weakly reachable root.
 
-  In a single strongly connected component,
+  In a single strongly-connected component,
   there are no pure sources, 
   as every vertex has both incoming and outgoing edges,
   and any vertex can be chosen as a strongly reachable root.
@@ -338,12 +351,14 @@ defmodule Exa.Graf.Graf do
   - cyclic graph with more than one 
     strongly connected component.
   """
-  @spec root(G.graph()) :: nil | G.vert() 
+  @spec root(G.graph()) :: nil | G.vert()
   def root(g), do: if(connected?(g, :weak), do: do_root(g), else: nil)
 
   defp do_root(g) do
-    src = some_vert(g)
-    g |> reachable(src, :in) |> Enum.filter(&(degree(g, &1, :in) == 0)) |> is_root(g)
+    g
+    |> reachable(some_vert(g), :in)
+    |> Enum.filter(fn i -> g |> degree(i, :in_self_out) |> elem(0) == 0 end)
+    |> is_root(g)
   end
 
   defp is_root([root], g) do
@@ -411,7 +426,7 @@ defmodule Exa.Graf.Graf do
     if not vert?(g, i) do
       {:error, "Vertex #{i} does not exist"}
     else
-      reach = MapSet.new([i]) 
+      reach = MapSet.new([i])
       do_frontier(reach, g, adjy, 0, nhop, %{0 => reach})
     end
   end
@@ -426,9 +441,9 @@ defmodule Exa.Graf.Graf do
     front =
       fronts
       |> Map.fetch!(n)
-      |> Enum.reduce(MapSet.new(), fn j, fs -> 
-           g |> reachable(j, adjy, 1) |> MapSet.union(fs) 
-         end)
+      |> Enum.reduce(MapSet.new(), fn j, fs ->
+        g |> reachable(j, adjy, 1) |> MapSet.union(fs)
+      end)
       |> MapSet.difference(reach)
 
     if MapSet.size(front) == 0 do
@@ -438,6 +453,47 @@ defmodule Exa.Graf.Graf do
       new_fronts = Map.put(fronts, n1, front)
       reach |> MapSet.union(front) |> do_frontier(g, adjy, n1, nhop, new_fronts)
     end
+  end
+
+  @doc """
+  Convert the frontiers of a vertex into a histogram.
+
+  For each frontier at hop (radius) _r_ 
+  set the count to be the size of the frontier.
+
+  The count at radius 0 is always 1 (the vertex itself).
+
+  At a sufficiently large radius, 
+  towards the maximum diameter of the graph, 
+  the histogram will fall to 0.
+
+  In between these extremes, the frontier size _F_ 
+  is a proxy for the surface area of the expanding neighborhood:
+  - 0 frontier means 0D (isolated vertex or component)
+  - constant (non-zero) curve means 1D
+  - linear curve means 2D
+  - quadratic curve means 3D
+  - power _p_ polynomial curve means _(p+1)D_
+
+  It is possibe to model fractal dimensions
+  and various kinds of polynomial curves 
+  for different connectivities, such as  
+  smooth dense edges or sparse rectangular lattices.
+
+  For example:
+  - 2D has linear histogram:
+    - smooth radial gives `F = 2πr`
+    - rectangular   gives `F = 8 r`
+
+  - 3D has quadratic histogram:
+    - smooth radial gives `F = 4πr²`
+    - rectangular   gives `F = 24r²`
+  """
+  @spec frontier_histo1d(G.frontiers()) :: H.histo1d()
+  def frontier_histo1d(fronts) do
+    Enum.reduce(fronts, Histo1D.new(), fn {r, f}, h ->
+      Histo1D.set(h, r, MapSet.size(f))
+    end)
   end
 
   @doc """
@@ -475,10 +531,12 @@ defmodule Exa.Graf.Graf do
   If the graph arguments already have disjoint sets of vertices,
   then the result will be the same for `:merge` and `:disjoint` options.
 
-  Merging a graph with itself leaves it unchanged.
-
   The content of the second graph is merged into the first graph.
   The second graph is not modified.
+
+  Merging a graph with itself leaves it unchanged.
+
+  Joining a graph with itself creates two copies. 
 
   Note that Adj and Dig graphs behave differently under mutation.
 
@@ -686,7 +744,7 @@ defmodule Exa.Graf.Graf do
   linear contractions are isomorphic.
 
   Linear node contraction just reduces the count of
-  nodes with 3-degree (in_self_out) value `{1,0,1}`.
+  nodes with 3-degree (`in_self_out`) value `{1,0,1}`.
   So two graphs are _not_ homeomorphic if their 
   3D degree histograms differ outside the `{1,0,1}` bin.
 
@@ -799,11 +857,11 @@ defmodule Exa.Graf.Graf do
   @doc """
   Test two graphs for isomorphism,
   which means a structural equivalence ignoring all vertex identitiers.
-  For isomorphic graphs, there is a relabelling of all vertices
+  For isomorphic graphs, there is a 1-1 bijective relabelling of all vertices
   that will make the graphs exactly equal.
 
   The result is either `false` or `:undecided`.
-  A full isomorphic test is not attempted.
+  A full isomorphism test is not attempted.
 
   The test compares:
   - number of vertices
@@ -813,8 +871,8 @@ defmodule Exa.Graf.Graf do
   Hashes are currently based on the  
   3D histogram of vertex in-self-out degrees.
 
-  This is a relatively quick check to excluded many non-isomorphic pairs.
-  It does not do a full equality check.
+  This is a relatively quick check to exclude many non-isomorphic pairs.
+  It also does not do a full equality check.
   """
   @spec isomorphic?(G.graph(), G.graph()) :: false | :undecided
   def isomorphic?(g1, g2) when is_graph(g1) and is_graph(g2) do
@@ -1042,17 +1100,16 @@ defmodule Exa.Graf.Graf do
   @spec spanning_forest(G.graph(), G.connectivity(), nil | G.vert()) :: G.forest()
   def spanning_forest(g, conn, root \\ nil)
       when is_graph(g) and (is_nil(root) or is_vert(root)) and is_conn(conn) do
-
     cb = %Visitor{
       # a DFF is an Map of Lists; empty stack List of Lists for children
       init_state: fn _g -> {Mol.new(), [[]]} end,
-      pre_tree: fn {dff, lol}, _g, root -> 
+      pre_tree: fn {dff, lol}, _g, root ->
         # add new root to forest
-        {Mol.append(dff, :forest, root), lol} 
+        {Mol.append(dff, :forest, root), lol}
       end,
-      pre_node: fn {dff, lol}, _g, _i -> 
+      pre_node: fn {dff, lol}, _g, _i ->
         # push an empty list of children onto the stack
-        {dff, [[] | lol]} 
+        {dff, [[] | lol]}
       end,
       post_node: fn {dff, [js, is | lol]}, _g, i ->
         # pop the stack, build the tree adjacency, push i into the parent child list
@@ -1069,8 +1126,8 @@ defmodule Exa.Graf.Graf do
   # -----------------
 
   @doc "Print out an indented view of the traversal of a Depth First Forest."
-  @spec dump(G.forest()) :: nil
-  def dump(dff) when is_forest(dff) do
+  @spec dump_forest(G.forest()) :: nil
+  def dump_forest(dff) when is_forest(dff) do
     Traverse.forest(
       dff,
       %Visitor{
@@ -1098,10 +1155,10 @@ defmodule Exa.Graf.Graf do
     Traverse.forest(
       dff,
       %Visitor{
-        init_state:   fn _ -> {[], []} end,
-        pre_node:     fn {path, ord}, _g, i -> {[i | path], [i | ord]} end,
-        visit_node:   fn {path, ord}, _g, i -> {path, [i | ord]} end,
-        post_node:    fn {[_ | path], ord}, _g, _i -> {path, ord} end,
+        init_state: fn _ -> {[], []} end,
+        pre_node: fn {path, ord}, _g, i -> {[i | path], [i | ord]} end,
+        visit_node: fn {path, ord}, _g, i -> {path, [i | ord]} end,
+        post_node: fn {[_ | path], ord}, _g, _i -> {path, ord} end,
         final_result: fn {[], ord} -> Enum.reverse(ord) end
       }
     )

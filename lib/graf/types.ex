@@ -11,14 +11,14 @@ defmodule Exa.Graf.Types do
 
   defguard set_size(set) when is_set(set) and map_size(set.map)
 
-  defguard is_set_member(set,x) when is_set(set) and is_map_key(set.map, x )
+  defguard is_set_member(set, x) when is_set(set) and is_map_key(set.map, x)
 
   # graf format ----------
 
   @typedoc "A vertex id is a positive integer."
   @type vert() :: pos_integer()
 
-  defguard is_vert(i) when is_pos_int(i)
+  defguard is_vert(i) when is_int_pos(i)
 
   @typedoc "List of vertices."
   @type verts() :: [vert()]
@@ -33,7 +33,7 @@ defmodule Exa.Graf.Types do
   @type edge() :: {vert(), vert()}
 
   defguard is_edge(e)
-           when is_fix_tuple(e, 2) and
+           when is_tuple_fix(e, 2) and
                   is_vert(elem(e, 0)) and is_vert(elem(e, 1))
 
   @typedoc "A chain of edges is a tuple of vertices."
@@ -80,7 +80,7 @@ defmodule Exa.Graf.Types do
   @typedoc "Graphs have a string name."
   @type gname() :: String.t()
 
-  defguard is_gname(gname) when is_nonempty_string(gname)
+  defguard is_gname(gname) when is_string_nonempty(gname)
 
   @typedoc """
   An adjacency graph data structure.
@@ -102,7 +102,7 @@ defmodule Exa.Graf.Types do
   """
   @type adj() :: {:adj, gname(), adjmaps()}
 
-  defguard is_adj(a) when is_tag_tuple(a, 3, :adj) and is_gname(elem(a, 1))
+  defguard is_adj(a) when is_tuple_tag(a, 3, :adj) and is_gname(elem(a, 1))
 
   @typedoc """
   A named Erlang digraph.
@@ -113,7 +113,7 @@ defmodule Exa.Graf.Types do
   """
   @type dig() :: {:dig, gname(), :digraph.graph()}
 
-  defguard is_dig(g) when is_tag_tuple(g, 3, :dig)
+  defguard is_dig(g) when is_tuple_tag(g, 3, :dig)
 
   @typedoc "The set of tags for graph tuple types."
   @type gtype() :: :adj | :dig
@@ -127,7 +127,7 @@ defmodule Exa.Graf.Types do
   """
   @type graph() :: adj() | dig()
 
-  defguard is_graph(g) when is_fix_tuple(g, 3) and is_gtype(elem(g, 0))
+  defguard is_graph(g) when is_tuple_fix(g, 3) and is_gtype(elem(g, 0))
 
   # counts, neighborhoods, adjacency and degree ----------
 
@@ -289,7 +289,7 @@ defmodule Exa.Graf.Types do
   """
   @type path() :: [vert(), ...]
 
-  defguard is_path(p) when is_nonempty_list(p) and is_vert(hd(p))
+  defguard is_path(p) when is_list_nonempty(p) and is_vert(hd(p))
 
   @typedoc """
   In an unweighted graph, distance is a non-negative integer,
@@ -297,7 +297,7 @@ defmodule Exa.Graf.Types do
   """
   @type distance() :: non_neg_integer()
 
-  defguard is_distance(d) when is_nonneg_int(d)
+  defguard is_distance(d) when is_int_nonneg(d)
 
   # components ----------
 

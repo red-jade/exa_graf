@@ -33,7 +33,7 @@ defmodule Exa.Graf.DotWriter do
   # - atom: :node, :edge and any other attribute key
   # TODO - needs clarifying, why not gkey() including edges
   @typep id() :: G.gname() | G.vert() | atom()
-  defguardp is_id(id) when is_nonempty_string(id) or is_pos_int(id) or is_atom(id)
+  defguardp is_id(id) when is_string_nonempty(id) or is_int_pos(id) or is_atom(id)
 
   # something from which node or edge attributes can be extracted
   # local attribute keywords or global graph attributes
@@ -225,7 +225,7 @@ defmodule Exa.Graf.DotWriter do
 
   def edges(io, [], _), do: io
 
-  def edges(io, edges, gattrs) when is_nonempty_list(edges) and is_tuple(hd(edges)) do
+  def edges(io, edges, gattrs) when is_list_nonempty(edges) and is_tuple(hd(edges)) do
     io
     |> newl()
     |> reduce(edges, fn {id, jd}, io ->

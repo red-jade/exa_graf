@@ -158,20 +158,22 @@ defmodule Exa.Graf.Traverse do
     |> cb.final_result.()
   end
 
-  @spec do_tree({G.vset(), s}, nil | G.vert(), G.graph(), G.adjacency(), visitor(s, r), fun()) :: r
+  @spec do_tree({G.vset(), s}, nil | G.vert(), G.graph(), G.adjacency(), visitor(s, r), fun()) ::
+          r
         when s: var, r: var
 
   defp do_tree({vs, state}, _root, _g, _adjy, _cb, _search) when set_size(vs) == 0, do: state
 
   defp do_tree({vs, state}, root, g, adjy, cb, search) do
     root = root(root, vs)
-    state 
-    |> cb.pre_tree.(g, root) 
+
+    state
+    |> cb.pre_tree.(g, root)
     |> search.([root], g, adjy, vs, cb)
     |> do_tree(nil, g, adjy, cb, search)
   end
 
-  defp root(i, vs) when is_vert(i) and is_set_member(vs,i), do: i
+  defp root(i, vs) when is_vert(i) and is_set_member(vs, i), do: i
   defp root(nil, vs), do: vs |> Enum.take(1) |> hd()
 
   defp search(:dfs), do: &dfs/6
@@ -180,27 +182,32 @@ defmodule Exa.Graf.Traverse do
   defp adjacency(:weak), do: :in_out
   defp adjacency(:strong), do: :out
 
-  @spec bfs(s, G.verts(), G.graph(), G.adjacency(), G.vset(), visitor(s,any())) :: {G.vset(),s} when s: var
+  @spec bfs(s, G.verts(), G.graph(), G.adjacency(), G.vset(), visitor(s, any())) :: {G.vset(), s}
+        when s: var
 
   defp bfs(state, [i | front], g, adjy, vs, cb) do
     vs = MapSet.delete(vs, i)
-    hop = g |> Graf.reachable(i, adjy, 1) |> MapSet.intersection(vs) 
+    hop = g |> Graf.reachable(i, adjy, 1) |> MapSet.intersection(vs)
     vs = MapSet.difference(vs, hop)
     state |> cb.visit_node.(g, i) |> bfs(front ++ MapSet.to_list(hop), g, adjy, vs, cb)
   end
 
   defp bfs(state, [], _g, _adjy, vs, _cb), do: {vs, state}
 
-  @spec dfs(s, G.verts(), G.graph(), G.adjacency(), G.vset(), visitor(s,any())) :: {G.vset(),s} when s: var
-  
+  @spec dfs(s, G.verts(), G.graph(), G.adjacency(), G.vset(), visitor(s, any())) :: {G.vset(), s}
+        when s: var
+
   defp dfs(state, [i], g, adjy, vs, cb) when is_set_member(vs, i) do
-      vs = MapSet.delete(vs, i)
-      pre = cb.pre_node.(state, g, i) 
-      hop = g |> Graf.reachable(i, adjy, 1) |> MapSet.delete(i) 
-      {vs, state} = Enum.reduce(hop, {vs, pre}, fn j, {vs, state} -> 
-        dfs(state, [j], g, adjy, vs, cb) 
-      end) 
-      {vs, cb.post_node.(state, g, i)}
+    vs = MapSet.delete(vs, i)
+    pre = cb.pre_node.(state, g, i)
+    hop = g |> Graf.reachable(i, adjy, 1) |> MapSet.delete(i)
+
+    {vs, state} =
+      Enum.reduce(hop, {vs, pre}, fn j, {vs, state} ->
+        dfs(state, [j], g, adjy, vs, cb)
+      end)
+
+    {vs, cb.post_node.(state, g, i)}
   end
 
   defp dfs(state, _v, _g, _adjy, vs, _cb), do: {vs, state}
@@ -220,7 +227,7 @@ defmodule Exa.Graf.Traverse do
       [i] when conn == :weak -> vs |> cyc_weak(g, nil, i) |> do_cycle(g, conn)
       [i] when conn == :strong -> vs |> cyc_strong(g, i, MapSet.new()) |> do_cycle(g, conn)
     end
-  catch 
+  catch
     {:return, :cyclic} -> true
   end
 
@@ -229,8 +236,8 @@ defmodule Exa.Graf.Traverse do
     vs = MapSet.delete(vs, i)
     ipath = MapSet.put(path, i)
 
-    Enum.reduce(Graf.neighborhood(g, i, :out), vs, fn 
-      j, _vs when is_set_member(ipath,j) -> throw({:return, :cyclic})
+    Enum.reduce(Graf.neighborhood(g, i, :out), vs, fn
+      j, _vs when is_set_member(ipath, j) -> throw({:return, :cyclic})
       j, vs -> cyc_strong(vs, g, j, ipath)
     end)
   end
@@ -246,13 +253,13 @@ defmodule Exa.Graf.Traverse do
     {ins, outs} = g |> Graf.neighborhood(i, :in_out) |> no_backtrack(from)
 
     vs =
-      Enum.reduce(outs, vs, fn 
+      Enum.reduce(outs, vs, fn
         j, vs when is_set_member(vs, j) -> cyc_weak(vs, g, {:in, i}, j)
         _, _ -> throw({:return, :cyclic})
       end)
 
-    Enum.reduce(ins, vs, fn 
-      j, vs when is_set_member(vs,j) -> cyc_weak(vs, g, {:out, i}, j)
+    Enum.reduce(ins, vs, fn
+      j, vs when is_set_member(vs, j) -> cyc_weak(vs, g, {:out, i}, j)
       _, _ -> throw({:return, :cyclic})
     end)
   end
@@ -296,7 +303,7 @@ defmodule Exa.Graf.Traverse do
       children ->
         children
         |> Enum.reduce(cb.pre_node.(state, g, i), fn j, state ->
-           dff(state, j, forest, cb, g)
+          dff(state, j, forest, cb, g)
         end)
         |> cb.post_node.(g, i)
     end

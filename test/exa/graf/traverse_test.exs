@@ -17,7 +17,7 @@ defmodule Exa.Graf.TraverseTest do
     dff = Graf.spanning_forest(dag, :strong, 1)
     assert %{1 => [2, 3], 3 => [4], 4 => [5], :forest => [1]} = dff
 
-    # Graf.dump(dff)
+    # Graf.dump_forest(dff)
     pre = Graf.preorder(dff)
     assert [1, 2, 3, 4, 5] == pre
     post = Graf.postorder(dff)
@@ -35,7 +35,7 @@ defmodule Exa.Graf.TraverseTest do
     assert %{1 => [2], 2 => [3], 3 => [7], 4 => [5], 5 => [6], 7 => [8], 8 => [4], :forest => [1]} ==
              weak_dff
 
-    # Graf.dump(weak_dff)
+    # Graf.dump_forest(weak_dff)
     pre = Graf.preorder(weak_dff)
     assert [1, 2, 3, 7, 8, 4, 5, 6] == pre
     post = Graf.postorder(weak_dff)
@@ -46,7 +46,7 @@ defmodule Exa.Graf.TraverseTest do
     assert %{1 => [2], 2 => [3], 3 => [7], 4 => [5], 5 => [6], 7 => [8], :forest => [1, 4]} ==
              strong_dff
 
-    # Graf.dump(strong_dff)
+    # Graf.dump_forest(strong_dff)
     pre = Graf.preorder(strong_dff)
     assert [1, 2, 3, 7, 8, 4, 5, 6] == pre
     post = Graf.postorder(strong_dff)
@@ -96,8 +96,8 @@ defmodule Exa.Graf.TraverseTest do
 
     cb = %Visitor{
       init_state: fn _ -> [] end,
-      pre_node: fn is, _g, i -> [i|is] end,
-      visit_node: fn is, _g, i -> [i|is] end,
+      pre_node: fn is, _g, i -> [i | is] end,
+      visit_node: fn is, _g, i -> [i | is] end,
       final_result: fn is -> Enum.reverse(is) end
     }
 
