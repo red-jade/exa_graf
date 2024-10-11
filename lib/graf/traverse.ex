@@ -14,6 +14,7 @@ defmodule Exa.Graf.Traverse do
   use Exa.Constants
   use Exa.Graf.Constants
 
+  import Exa.Types
   import Exa.Graf.Types
   alias Exa.Graf.Types, as: G
 
