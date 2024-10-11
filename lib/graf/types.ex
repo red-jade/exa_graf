@@ -7,12 +7,6 @@ defmodule Exa.Graf.Types do
   alias Exa.Std.Mol, as: Mol
   alias Exa.Std.Mos, as: Mos
 
-  # TODO - remove when get next version of exa_core
-
-  defguard set_size(set) when is_set(set) and map_size(set.map)
-
-  defguard is_set_member(set, x) when is_set(set) and is_map_key(set.map, x)
-
   # graf format ----------
 
   @typedoc "A vertex id is a positive integer."
@@ -28,6 +22,9 @@ defmodule Exa.Graf.Types do
 
   @typedoc "A set of vertices."
   @type vset() :: MapSet.t(vert())
+
+  # relabelling of vertices (1-1 bijection)
+  @type vmap() :: %{G.vert() => G.vert()}
 
   @typedoc "A directed edge is an ordered pair of vertices."
   @type edge() :: {vert(), vert()}
@@ -129,25 +126,80 @@ defmodule Exa.Graf.Types do
 
   defguard is_graph(g) when is_tuple_fix(g, 3) and is_gtype(elem(g, 0))
 
-  # counts, neighborhoods, adjacency and degree ----------
+  # -------------------------------------------
+  # counts, neighborhoods, adjacency and degree 
+  # -------------------------------------------
 
   @typedoc """
   Degree is the count of edges for a vertex.
 
-  Depending on the adjacency type, 
-  the degree is a scalar, pair or triple:
+  The scalar degree is a single number for adjacencies:
   - `:in` number of incoming edges
   - `:out` number of outgoing edges
+
+  If the vertex has a self-loop, 
+  the loop is included in each of the scalar counts.
+  """
+  @type degree() :: E.count()
+
+  @typedoc """
+  Degrees are counts of edges for a vertex.
+
+  The degree is a pair for adjacency:
   - `:in_out` degrees of incoming and outgoing edges
+
+  If the vertex has a self-loop, 
+  the loop is included in both counts.
+  """
+  @type degree2() :: {n_in :: G.degree(), n_out :: G.degree()}
+
+  @typedoc """
+  Degrees are counts of edges for a vertex.
+
+  The degree is a triple for adjacency:
   - `:in_self_out` degrees of incoming edges, self-loop, 
      and outgoing edges
 
-  The counts for `:in`, `:out` and `in_out` 
-  will include the vertex itself if it has a self loop. 
-  The _in/out_ counts for `:in_self_out`
-  do not include any contribution from self-loop.
+  If the vertex has a self-loop, 
+  it is counted separately in the central value,
+  not included in the _in_ or _out_ counts.
   """
-  @type degree() :: E.count()
+  @type degree3() :: {n_in :: G.degree(), self :: 0 | 1, n_out :: G.degree()}
+
+  @typedoc """
+  A set of neighbors. 
+
+  The scalar is a single set for adjacencies:
+  - `:in` incoming neighbors
+  - `:out` outgoing neighbors
+
+  If the vertex has a self-loop, 
+  the vertex is included in each of the scalar sets.
+  """
+  @type neigh() :: vset()
+
+  @typedoc """
+  The sets of neighbors for a vertex.
+
+  The neighbors are a pair of sets for adjacency:
+  - `:in_out` separate in/out neighbors
+
+  If the vertex has a self-loop, 
+  the vertex is included in both of the two sets.
+  """
+  @type neigh2() :: {ins :: neigh(), outs :: neigh()}
+
+  @typedoc """
+
+  The sets of neighbors for a vertex.
+  The neighbors are a triple for adjacency:
+  - `:in_self_out` in, self and out as separate fields
+
+  If the vertex has a self-loop, 
+  it is indicated in the central value,
+  not included in the _in_ or _out_ sets.  
+  """
+  @type neigh3() :: {ins :: neigh(), self :: nil | G.vert(), outs :: neigh()}
 
   @typedoc """
   Type of adjacency neighborhood:
