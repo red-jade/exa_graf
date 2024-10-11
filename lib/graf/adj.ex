@@ -403,9 +403,12 @@ defmodule Exa.Graf.Adj do
     end)
   end
 
-  # --------------
+  @impl true
+  def equal?({:adj, _, {_, outadj1}}, {:adj, _, {_, outadj2}}), do: outadj1 == outadj2
+
+  # -------------
   # adj functions
-  # --------------
+  # -------------
 
   @doc "Read an adj graph from file in Elixir literal format."
   @spec from_adj_file(E.filename()) :: G.adj() | {:error, any}

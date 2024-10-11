@@ -100,11 +100,7 @@ defmodule Exa.Graf.API do
   Returns an error if the vertex does not exist.
   """
   @callback degree(G.graph(), G.vert(), G.adjacency()) ::
-              n_in_or_out ::
-              G.degree()
-              | {n_in :: G.degree(), n_out :: G.degree()}
-              | {n_in :: G.degree(), self :: 0 | 1, n_out :: G.degree()}
-              | {:error, any()}
+              G.degree() | G.degree2() | G.degree3() | {:error, any()}
 
   @doc """
   Get the neighbors of a vertex, given an adjacency relationship.
@@ -118,11 +114,7 @@ defmodule Exa.Graf.API do
   Returns an error if the vertex does not exist.
   """
   @callback neighborhood(G.graph(), G.vert(), G.adjacency()) ::
-              v_in_or_out ::
-              G.vset()
-              | {v_in :: G.vset(), v_out :: G.vset()}
-              | {v_in :: G.vset(), self :: nil | G.vert(), v_out :: G.vset()}
-              | {:error, any()}
+              G.neigh() | G.neigh2() | G.neigh3() | {:error, any()}
 
   @doc """
   Get the connected components of the graph.
@@ -184,4 +176,10 @@ defmodule Exa.Graf.API do
   of the weakly connected component.
   """
   @callback reachable(G.graph(), G.vert(), G.adjacency(), G.nhop()) :: G.vset()
+
+  @doc """
+  Test two graphs for exact equality,
+  including all vertex identifiers.
+  """
+  @callback equal?(G.graph(), G.graph()) :: bool()
 end

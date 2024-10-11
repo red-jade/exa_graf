@@ -67,10 +67,19 @@ defmodule Exa.Graf.Dig do
   def verts({:dig, _, dig}), do: :digraph.vertices(dig)
 
   @impl true
-  def edges({:dig, _, dig}) do
+  def edges({:dig, _, dig}), do: digraph_edge_list(dig)
+
+  defp digraph_edge_list(dig) do
     Enum.map(:digraph.edges(dig), fn e ->
       {_id, i, j, _label} = :digraph.edge(dig, e)
       {i, j}
+    end)
+  end
+
+  defp digraph_edge_set(dig) do
+    Enum.reduce(:digraph.edges(dig), MapSet.new(), fn e, eset ->
+      {_id, i, j, _label} = :digraph.edge(dig, e)
+      MapSet.put(eset, {i, j})
     end)
   end
 
@@ -375,5 +384,13 @@ defmodule Exa.Graf.Dig do
     end)
 
     {:dig, gname <> "_condensation", clone}
+  end
+
+  @impl true
+  def equal?({:dig, _, dig1}, {:dig, _, dig2}) do
+    :digraph.no_vertices(dig1) == :digraph.no_vertices(dig2) and
+      :digraph.no_edges(dig1) == :digraph.no_edges(dig2) and
+      MapSet.new(:digraph.vertices(dig1)) == MapSet.new(:digraph.vertices(dig2)) and
+      digraph_edge_set(dig1) == digraph_edge_set(dig2)
   end
 end
