@@ -325,8 +325,9 @@ defmodule Exa.Graf.GrafTest do
     end
   end
 
-  test "iso" do
+  test "iso cycles" do
     for nhop <- [0, 1] do
+      IO.inspect(nhop, label: "\n\nNHOP")
       # build 3-cycle, with self-loops on different vertices
       g1 = new(:adj, "iso1") |> add({1, 1, 2, 3, 1})
       h1 = hash(g1, nhop)
@@ -340,21 +341,45 @@ defmodule Exa.Graf.GrafTest do
       assert h1 == h2
       assert h2 == h3
       assert h3 == h1
-      assert :undecided = isomorphic?(g1, g2)
-      assert :undecided = isomorphic?(g2, g3)
-      assert :undecided = isomorphic?(g3, g1)
-    end
 
+      iso = isomorphism(g1, g2)
+      IO.inspect(iso, label: "isomorf")
+      {:isomorphic, vmap} = iso
+      isovalid(g1, g2, vmap)
+    end
+  end
+
+  @tag timeout: 30_000
+  test "iso petersen" do
     # try two versions of the Petersen graph
-    # with a self-loop on different verts
     peter = "petersen" |> adj_file() |> from_adj_file()
+
+    # self-loop on different verts
+    # reduces the difficulty to 4,320
+
     pA = add(peter, {1, 1})
     pB = add(peter, {5, 5})
-    assert :undecided == isomorphic?(pA, pB)
+    iso = isomorphism(pA, pB)
+    IO.inspect(iso, label: "Petersen self-loop")
+    {:isomorphic, vmap} = iso
+    isovalid(pA, pB, vmap)
 
-    retep = transpose(peter)
-    assert :undecided == isomorphic?(peter, retep)
+    # pure Petersen
+    # difficulty 10! = 3,628,800
+    # symmetries  5! =       120
+    # av attempts ~~      30,240
 
+    # l10 = Range.to_list(1..10)
+    # randmap = Exa.Map.zip_new(l10, Enum.shuffle(l10))
+    # rpeet = relabel(peter, randmap)
+    # iso = isomorphism(peter, rpeet)
+    # IO.inspect(iso)
+    # IO.inspect(iso, label: "Petersen offset")
+    # {:isomorphic, vmap} = iso
+    # isovalid(peter, rpeet, vmap)
+  end
+
+  test "iso cycle handles" do
     # first example where the 0,1 hop hashes are different
     # 4-cycle with 2 handles, one in transposed direction
     cychan = new(:adj, "cychan") |> add([{1, 2, 3, 4, 1}, {4, 5}, {5, 1}])
@@ -363,8 +388,10 @@ defmodule Exa.Graf.GrafTest do
 
     assert hash(cychanA, 0) == hash(cychanB, 0)
     assert hash(cychanA, 1) != hash(cychanB, 1)
-    assert not isomorphic?(cychanA, cychanB)
+    assert :not_isomorphic == isomorphism(cychanA, cychanB)
   end
+
+  defp isovalid(g1, g2, vmap), do: assert(g1 |> relabel(vmap) |> equal?(g2))
 
   test "homeomorphism" do
     # loop and tail with different linear chains

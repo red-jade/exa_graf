@@ -36,6 +36,7 @@ defmodule Exa.Graf.Graf do
   alias Exa.Std.Histo3D
   alias Exa.Std.Tidal
   alias Exa.Std.Mol
+  alias Exa.Std.Mos
 
   alias Exa.Graf.Adj
   alias Exa.Graf.Dig
@@ -131,6 +132,30 @@ defmodule Exa.Graf.Graf do
   @impl true
   def condensation(g) when is_graph(g),
     do: dispatch(@disp, g, :condensation)
+
+  @impl true
+
+  # let the concrete implementations optimize their internal equalities
+  # otherwise implement a default algorithm comparing graph elements
+
+  def equal?({:adj, _, _} = g1, {:adj, _, _} = g2),
+    do: dispatch(@disp, g1, :equal?, [g2])
+
+  def equal?({:dig, _, _} = g1, {:dig, _, _} = g2),
+    do: dispatch(@disp, g1, :equal?, [g2])
+
+  def equal?(g1, g2) when is_graph(g1) and is_graph(g2) do
+    nvert(g1) == nvert(g2) and
+      nedge(g1) == nedge(g2) and
+      do_equal(g1, g2)
+  end
+
+  # keep the vert/edge comparison separate so it can be 
+  # invoked without repeating nvert/nedge equality check
+  defp do_equal(g1, g2) do
+    MapSet.new(verts(g1)) == MapSet.new(verts(g2)) and
+      MapSet.new(edges(g1)) == MapSet.new(edges(g2))
+  end
 
   # -----------------------
   # generic implementations 
@@ -498,20 +523,27 @@ defmodule Exa.Graf.Graf do
 
   @doc """
   Relabel a graph by applying a vertex mapper.
+  The mapper can be a map data structure, or a mapping function. 
 
   The result is a new graph, the input graph is not changed.
 
   If the mapper is a permutation on the same set of vertex ids, 
   or any another 1-1 bijection, then the topology is not changed.
 
-  If the mapper is non-deterministic (randomized), 
-  or has at least one many-to-one merging of vertices,
+  If the mapper has one or more many-to-one merging of vertices,
   then the number of vertices, number of edges,
   and topology will change.
 
   Use `rename/2` to change the name of the output graph.
   """
-  @spec relabel(G.graph(), (G.vert() -> G.vert())) :: G.graph()
+  @spec relabel(G.graph(), E.mapping(G.vert(), G.vert())) :: G.graph()
+
+  def relabel(g, vmap) when is_graph(g) and is_map(vmap) do
+    new(elem(g, 0), elem(g, 1))
+    |> add(g |> isolated() |> Enum.map(&Map.fetch!(vmap, &1)))
+    |> add(g |> edges() |> Enum.map(fn {i, j} -> {vmap[i], vmap[j]} end))
+  end
+
   def relabel(g, vfun) when is_graph(g) and is_function(vfun, 1) do
     new(elem(g, 0), elem(g, 1))
     |> add(g |> isolated() |> Enum.map(vfun))
@@ -569,6 +601,10 @@ defmodule Exa.Graf.Graf do
       join(g1, relabel(g2, fn i -> i + delta end), :merge)
     end
   end
+
+  # ------------
+  # contractions
+  # ------------
 
   @doc """
   Contract an edge.
@@ -737,29 +773,9 @@ defmodule Exa.Graf.Graf do
     end)
   end
 
-  @doc """
-  Compare two graphs for _homeomorphism_ (topological equivalence). 
-
-  Two graphs are _homeomorphic_ if their 
-  linear contractions are isomorphic.
-
-  Linear node contraction just reduces the count of
-  nodes with 3-degree (`in_self_out`) value `{1,0,1}`.
-  So two graphs are _not_ homeomorphic if their 
-  3D degree histograms differ outside the `{1,0,1}` bin.
-
-  Currently, the isomorphism test never returns `true`,
-  so the most positive result is `:undecided`.
-  """
-  @spec homeomorphic?(G.graph(), G.graph()) :: false | :undecided
-  def homeomorphic?(g1, g2) when is_graph(g1) and is_graph(g2) do
-    if g1 |> degree_histo3d() |> Map.delete({1, 0, 1}) !=
-         g2 |> degree_histo3d() |> Map.delete({1, 0, 1}) do
-      false
-    else
-      isomorphic?(contract_linears(g1), contract_linears(g2))
-    end
-  end
+  # -----------------
+  # degree histograms
+  # -----------------
 
   @doc """
   Create a 1D histogram of the vertex degrees.
@@ -832,61 +848,329 @@ defmodule Exa.Graf.Graf do
     end)
   end
 
+  # --------------------------------------------
+  # hashes, equality, isomorphism, homeomorphism
+  # --------------------------------------------
+
+  # global index to local in/out neighbors
+  @typep neigh_index() :: %{G.vert() => G.neigh2()}
+
+  # 0 hop local topology is just G.degree3()
+  # global index of vertex id to degree3
+  @typep degree_index() :: %{G.vert() => G.degree3()}
+
+  # combine basic indexes for the graph
+  @typep indexes() :: {neigh_index(), degree_index()}
+
+  # 1 hop local topology is degree3 for the vertex,
+  # plus histograms of degree3 for in/out neighbors 
+  @typep local_degrees() ::
+           {in_histo :: H.histo3d(), self_degree3 :: G.degree3(), out_histo :: H.histo3d()}
+
+  # global index of vertex id to local degrees
+  @typep topo_index() :: %{G.vert() => local_degrees()}
+
+  # global index of vertex hash
+  @typep hash_index() :: %{G.vert() => G.hash()}
+
+  # global or local inverse cache of verts having a hash
+  @typep hash_cache() :: Mos.mos(G.hash(), G.vert())
+
+  # index of number of verts with a hash, to a list of hashes with that count
+  @typep length_index() :: Mol.mol(E.count1(), G.hash())
+
+  # local topology cache for vertex ins/outs having a hash
+  # @typep local_hashes() :: {in_cache :: hash_cache(), out_cache :: hash_cache()}
+
+  # local topo cache for vertex ins/outs having a hash
+  # @typep topo_cache() :: %{G.vert() => local_hashes()}
+
   @doc """
-  Test two graphs for exact equality,
-  including all vertex and edge identifiers.
+  Compare two graphs for _homeomorphism_ (topological equivalence). 
 
-  This may be very slow, consider spawning as a task:
-  - digraph (dig) is stored in ETS (separate process)
-    so `Task` asynch/await may be appropriate
-  - adj is in-process, so a spawned task will
-    incur an overhead for copying all graph data 
+  Two graphs are _homeomorphic_ if their 
+  linear contractions are isomorphic.
+
+  Linear node contraction just reduces the count of
+  nodes with 3-degree (`in_self_out`) value `{1,0,1}`.
+  So two graphs are _not_ homeomorphic if their 
+  3D degree histograms differ outside the `{1,0,1}` bin.
+
+  The value will be `:undecided` if the isomorphism test times out.
   """
-  @spec equal?(G.graph(), G.graph()) :: bool()
-  def equal?(g1, g2) when is_graph(g1) and is_graph(g2) do
-    case isomorphic?(g1, g2) do
-      false ->
-        false
+  @spec homeomorphic?(G.graph(), G.graph()) :: :not_homeomorphic | :undecided | :homeomorphic
+  def homeomorphic?(g1, g2) when is_graph(g1) and is_graph(g2) do
+    histo1 = g1 |> degree_histo3d() |> Map.delete({1, 0, 1})
+    histo2 = g2 |> degree_histo3d() |> Map.delete({1, 0, 1})
 
-      :undecided ->
-        g1 |> verts() |> MapSet.new() == g2 |> verts() |> MapSet.new() and
-          g1 |> edges() |> MapSet.new() == g2 |> edges() |> MapSet.new()
+    if histo1 != histo2 do
+      :undecided
+    else
+      gc1 = contract_linears(g1)
+      gc2 = contract_linears(g2)
+
+      case isomorphism(gc1, gc2) do
+        :not_isomorphic -> :not_homeomorphic
+        :undecided -> :undecided
+        {:isomorphic, _} -> :homeomorphic
+      end
     end
   end
 
   @doc """
-  Test two graphs for isomorphism,
+  Find an isomorphism between two graphs,
   which means a structural equivalence ignoring all vertex identitiers.
+
   For isomorphic graphs, there is a 1-1 bijective relabelling of all vertices
   that will make the graphs exactly equal.
 
-  The result is either `false` or `:undecided`.
-  A full isomorphism test is not attempted.
+  If the two graphs are equal, then they are isomorphic
+  with the identity (no-op) mapping.
 
-  The test compares:
+  The result is either:
+  - `:not_isomorphic`
+  - `:isomorphic` with one possible vertex mapping
+  - `:undecided` if the maximum time duration was exceeded
+
+  The initial test compares:
   - number of vertices
   - number of edges
-  - hashes of the graphs
+  - hashes of the graphs (0-hop and 1-hop)
 
-  Hashes are currently based on the  
-  3D histogram of vertex in-self-out degrees.
+  Most graphs that are not isomorphic will return promptly at this stage.
 
-  This is a relatively quick check to exclude many non-isomorphic pairs.
-  It also does not do a full equality check.
+  If all tests pass, then calculate isomorphism, fail or timeout.
   """
-  @spec isomorphic?(G.graph(), G.graph()) :: false | :undecided
-  def isomorphic?(g1, g2) when is_graph(g1) and is_graph(g2) do
-    if nvert(g1) == nvert(g2) and
-         nedge(g1) == nedge(g2) and
-         hash(g1, 0) == hash(g2, 0) and
-         hash(g1, 1) == hash(g2, 1) do
-      # next steps not currently implemented:
-      # - no isomorphism permutation check
-      # - no test for equality here
-      :undecided
+  @spec isomorphism(G.graph(), G.graph()) ::
+          :not_isomorphic | :undecided | {:isomorphic, G.vmap()}
+  def isomorphism(g1, g2) when is_graph(g1) and is_graph(g2) do
+    with true <- nvert(g1) == nvert(g2),
+         true <- nedge(g1) == nedge(g2),
+         verts1 = verts(g1),
+         verts2 = verts(g2),
+         {nindex1, _dindex1} = idxs1 = indexes(g1, verts1),
+         {nindex2, _dindex2} = idxs2 = indexes(g2, verts2),
+         # hash(g1,0) == hash(g2,0)
+         g1hash0 = do_hash0(idxs1, verts1),
+         g2hash0 = do_hash0(idxs2, verts2),
+         true <- g1hash0 == g2hash0,
+         # hash(g1,1) == hash(g2,1)
+         {hindex1, g1hash1} <- do_hash1(idxs1, verts1),
+         {hindex2, g2hash1} <- do_hash1(idxs2, verts2),
+         true <- g1hash1 == g2hash1 do
+      do_isomorphism(verts1, verts2, nindex1, nindex2, hindex1, hindex2)
     else
-      false
+      false -> :not_isomorphic
     end
+  end
+
+  @spec do_isomorphism(
+          G.verts(),
+          G.verts(),
+          neigh_index(),
+          neigh_index(),
+          hash_index(),
+          hash_index()
+        ) ::
+          :not_isomorphic | :undecided | {:isomorphic, G.vmap()}
+  defp do_isomorphism(verts1, verts2, nindex1, nindex2, hindex1, hindex2) do
+    # hash cache is MoS of hash => set of vertices with the hash
+    hcache1 = hash_cache(hindex1, verts1)
+    hcache2 = hash_cache(hindex2, verts2)
+
+    # TODO - tcaches maybe useful for faster incremental solutions
+    # tcache1 = topo_cache(nindex1, hindex1, verts1)
+    # tcache2 = topo_cache(nindex2, hindex2, verts2)
+
+    # length index is MoL of num vertices => list of hashes with that many vertices
+    lindex1 = Mos.index_size(hcache1)
+    lindex2 = Mos.index_size(hcache2)
+
+    # lens is ascending order, but vert_lol will reverse order
+    # so more ambiguous to least ambiguous (singletons)
+    lengths = lindex1 |> Map.keys() |> Enum.sort()
+    lol1 = vert_lol(lengths, lindex1, hcache1)
+    lol2 = vert_lol(lengths, lindex2, hcache2)
+
+    # product of all permutations over hash equivalence classes
+    # for every hash with n vertices, there are n! permutations
+    # the num of hashes with that length will be the power of the factorial
+    Logger.info(fn ->
+      difficulty = Exa.Math.n_subpermutations(lol1)
+      "Isomorphism difficulty: #{difficulty}"
+    end)
+
+    nvert = length(verts1)
+    morf? = fn vmap -> morf?(vmap, nindex1, nindex2) end
+
+    case submaps(lol1, lol2, morf?) do
+      :not_isomorphic ->
+        :not_isomorphic
+
+      {:isomorphic, _} = iso ->
+        iso
+
+      submaps when is_list(submaps) ->
+        IO.inspect(submaps)
+
+        find_selection(
+          submaps,
+          fn vmap ->
+            if map_size(vmap) == nvert and morf?.(vmap) do
+              throw({:return, vmap})
+            else
+              vmap
+            end
+          end
+        )
+    end
+
+    # Logger.info(fn -> "Isomorphism candidates: #{length(vmaps)}" end)
+    # Logger.info(fn -> "Isomorphism attempts:   #{n}" end)
+  end
+
+  # threshold for consistency check on partial sub-mapping
+  # sub-lists equal or shorter will not be pre-checked
+  @small_perm 3
+
+  # generate all sub-mappings (LoM) for equivalence classes (LoL)
+  @spec submaps([G.verts()], [G.verts()], E.predicate?()) :: [G.vmap()]
+
+  defp submaps([vl1], [vl2], morf?) do
+    # all vertices in one equivalence class (e.g. Petersen)
+    # just search permutations of the one list
+
+    # single permutation is just n! 
+    nvert = length(vl1)
+    Logger.info(fn -> "Isomorphism candidates: #{Exa.Math.fac(nvert)}" end)
+
+    find_permutation(
+      vl2,
+      fn
+        p2 when length(p2) == nvert ->
+          vmap = Exa.Map.zip_new(vl1, p2)
+          if morf?.(vmap), do: throw({:return, vmap}), else: p2
+
+        p2 ->
+          p2
+      end
+    )
+  end
+
+  defp submaps(lol1, lol2, morf?) do
+    # only pre-test submaps if there's more than one non-trivial sublist
+    nlong =
+      Enum.reduce_while(lol1, 0, fn
+        ls, 0 when length(ls) > 1 -> {:cont, 1}
+        ls, 1 when length(ls) > 1 -> {:halt, 2}
+        _, n -> {:cont, n}
+      end)
+
+    morf? = if nlong in [0, 1], do: nil, else: morf?
+    do_sub(lol1, lol2, morf?, [])
+  end
+
+  @spec do_sub([G.verts()], [G.verts()], E.predicate?(), [G.vmap()]) :: [G.vmap()]
+
+  defp do_sub([vl1 | lol1], [vl2 | lol2], morf?, submaps) do
+    IO.inspect(Exa.Math.fac(length(vl2)), label: "n perms")
+
+    subs =
+      vl2
+      |> Exa.Math.permutations()
+      |> Exa.List.filter_map(fn p2 ->
+        vmap = Exa.Map.zip_new(vl1, p2)
+
+        cond do
+          map_size(vmap) <= @small_perm -> vmap
+          not is_nil(morf?) and morf?.(vmap) -> vmap
+          true -> nil
+        end
+      end)
+
+    IO.inspect(length(subs), label: "n subs ")
+    do_sub(lol1, lol2, morf?, [subs | submaps])
+  end
+
+  defp do_sub([], [], _, submaps), do: Enum.reverse(submaps)
+
+  # generate selections of merged maps and return promptly if target is found
+
+  defp find_selection(lolmaps, terminate!) do
+    do_find_select(lolmaps, terminate!)
+    :not_isomorphic
+  catch
+    {:return, vmap} -> {:isomorphic, vmap}
+  end
+
+  def do_find_select([hs | ts], terminate!) do
+    for h <- hs, t <- do_find_select(ts, terminate!), do: terminate!.(Map.merge(h, t))
+  end
+
+  def do_find_select([], _), do: [%{}]
+
+  # generate permutations and return promptly if target is found
+
+  defp find_permutation(ls, terminate!) do
+    do_find_perm(ls, terminate!)
+    :not_isomorphic
+  catch
+    {:return, vmap} -> {:isomorphic, vmap}
+  end
+
+  def do_find_perm([], _), do: [[]]
+
+  def do_find_perm(ls, terminate!) do
+    for h <- ls, t <- do_find_perm(ls -- [h], terminate!), do: terminate!.([h | t])
+  end
+
+  # convert MoL index of length => list of hashes with that length
+  # and     MoL index of hash   => list of vertices with that hash 
+  # to      LoL list of ambiguous vertex sublists
+  @spec vert_lol([E.count1()], length_index(), hash_cache()) :: [[G.vert()]]
+  defp vert_lol(lengths, lindex, hcache) do
+    Enum.reduce(lengths, [], fn len, lol ->
+      Enum.reduce(lindex[len], lol, fn hash, lol ->
+        [MapSet.to_list(hcache[hash]) | lol]
+      end)
+    end)
+  end
+
+  # test if a partial or total relabelling is consistent
+  @spec morf?(G.vmap(), neigh_index(), neigh_index()) :: bool()
+
+  defp morf?(vmap, nindex1, nindex2) when map_size(vmap) == map_size(nindex1) do
+    # total relabelling
+    Enum.all?(vmap, fn {i1, i2} ->
+      {ins1, outs1} = nindex1[i1]
+      {ins2, outs2} = nindex2[i2]
+      setmorf?(vmap, ins1, ins2) and setmorf?(vmap, outs1, outs2)
+    end)
+  end
+
+  defp morf?(vmap, nindex1, nindex2) do
+    # partial relabelling
+    Enum.all?(vmap, fn {i1, i2} ->
+      {ins1, outs1} = nindex1[i1]
+      {ins2, outs2} = nindex2[i2]
+      subsetmorf?(vmap, ins1, ins2) and subsetmorf?(vmap, outs1, outs2)
+    end)
+  end
+
+  # test if total relabelling is consistent for two vertex sets
+  # equivalent to map and equality test, but in a single pass
+  @spec setmorf?(G.vmap(), G.vset(), G.vset()) :: bool()
+  defp setmorf?(vmap, vs1, vs2) do
+    # we know all args have the same size and hold distinct values
+    # so subset test is equivalent to equality
+    Enum.all?(vs1, fn i1 -> is_set_member(vs2, vmap[i1]) end)
+  end
+
+  # test if partial relabelling is consistent for two vertex sets
+  # equivalent to map and equality test, but in a single pass
+  @spec subsetmorf?(G.vmap(), G.vset(), G.vset()) :: bool()
+  defp subsetmorf?(vmap, vs1, vs2) do
+    Enum.all?(vs1, fn i1 -> not is_map_key(vmap, i1) or is_set_member(vs2, vmap[i1]) end)
   end
 
   @doc """
@@ -898,8 +1182,7 @@ defmodule Exa.Graf.Graf do
 
   The hash can be used to reject a graph isomorphism test.
   Graphs with different hashes cannot be isomorphic.
-  Graphs with the same hash may be isomorphic, or not,
-  they are _undecided._
+  Graphs with the same hash may be isomorphic, or not.
 
   The basic approach is to:
   - create a histogram from an encoding of 
@@ -910,7 +1193,7 @@ defmodule Exa.Graf.Graf do
 
   There are two levels of encoding the local topology of a vertex,
   based on the number of hops out from the vertex:
-  - 0 hop: 3-tuple of *in_self_out* degrees for the vertex itself
+  - 0 hop: 3-tuple of `:in_self_out` degrees for the vertex itself
   - 1 hop: 3-tuple encoding: 
     - histogram of 3-tuple degrees for incoming neighbors 
     - vertex 3-tuple degrees
@@ -930,53 +1213,92 @@ defmodule Exa.Graf.Graf do
   @spec hash(G.graph(), nhop :: 0 | 1) :: G.hash()
 
   def hash(g, 0) do
-    g |> degree_histo3d() |> hash_term()
+    verts = verts(g)
+    g |> indexes(verts) |> do_hash0(verts)
   end
 
   def hash(g, 1) do
     verts = verts(g)
+    g |> indexes(verts) |> do_hash1(verts) |> elem(1)
+  end
 
-    # build two indexes of neighborhood described as:
-    #   {in_neighbors, out_neighbors} exluding self loops
-    #   {in_degree, self_degree, out_degree}
-    {neigh_index, deg_index} =
+  # shared hash and isomorphism utilities ----------
+
+  @spec do_hash0(indexes(), G.verts()) :: G.hash()
+  defp do_hash0({_nindex, dindex}, verts) do
+    dindex |> degree_histo3d(verts) |> hash_term()
+  end
+
+  @spec do_hash1(indexes(), G.verts()) :: G.hash()
+  defp do_hash1(idxs, verts) do
+    hindex = hash_index(idxs, verts)
+    ghash = hindex |> graph_histo(verts) |> hash_term()
+    {hindex, ghash}
+  end
+
+  # build indexes of the local neighborhood and degrees
+  @spec indexes(G.graph(), G.verts()) :: indexes()
+  defp indexes(g, verts) do
+    {nindex, dindex} =
       Enum.reduce(verts, {%{}, %{}}, fn i, {nindex, dindex} ->
         {ins, self, outs} = neighborhood(g, i, :in_self_out)
         self_deg = if is_nil(self), do: 0, else: 1
-
-        {
-          Map.put(nindex, i, {ins, outs}),
-          Map.put(dindex, i, {MapSet.size(ins), self_deg, MapSet.size(outs)})
-        }
+        deg3 = {MapSet.size(ins), self_deg, MapSet.size(outs)}
+        {Map.put(nindex, i, {ins, outs}), Map.put(dindex, i, deg3)}
       end)
 
-    # build a histogram of vertex hashes
-    # calculated from on neighborhood tuple
-    # encoded using 3-degrees (in_self_out 3-tuples)
-    vhash_histo =
-      Enum.reduce(verts, Histo.new(), fn i, h ->
-        {ins, outs} = Map.fetch!(neigh_index, i)
-        in_histo3d = do_histo3d(ins, deg_index)
-        self_degree3 = Map.fetch!(deg_index, i)
-        out_histo3d = do_histo3d(outs, deg_index)
-        vdata = {in_histo3d, self_degree3, out_histo3d}
-        vhash = hash_term(vdata)
-        Histo.inc(h, vhash)
-      end)
-
-    # finally, hash the vertex hash histogram
-    hash_term(vhash_histo)
+    {nindex, dindex}
   end
 
-  # index of vertex id to 3-degree tuple (in_self_out)
-  @typep degree_index3() :: %{G.vert() => {G.degree(), 0 | 1, G.degree()}}
+  # build hash index of vertex to its hash
+  # calculated from neighborhood histos of degree3 (in_self_out 3-tuples)
+  @spec hash_index(indexes(), G.verts()) :: hash_index()
+  defp hash_index(idxs, verts) do
+    tindex = topo_index(idxs, verts)
+
+    Enum.reduce(verts, %{}, fn i, hindex ->
+      vhash = hash_term(tindex[i])
+      Map.put(hindex, i, vhash)
+    end)
+  end
+
+  # build topo index of vertex to local 1-hop degree histograms
+  @spec topo_index(indexes(), G.verts()) :: topo_index()
+  defp topo_index({nindex, dindex}, verts) do
+    Enum.reduce(verts, %{}, fn i, tindex ->
+      {ins, outs} = nindex[i]
+      dlocal = {degree_histo3d(dindex, ins), dindex[i], degree_histo3d(dindex, outs)}
+      Map.put(tindex, i, dlocal)
+    end)
+  end
+
+  # build topo cache of vertex to its local topology hashes
+  # @spec topo_cache(neigh_index(), hash_index(), G.verts()) :: topo_cache()
+  # defp topo_cache(nindex, hindex, verts) do
+  #   Enum.reduce(verts, %{}, fn i, tcache ->
+  #     {ins, outs} = nindex[i]
+  #     hlocal = {hash_cache(hindex, ins), hash_cache(hindex, outs)}
+  #     Map.put(tcache, i, hlocal)
+  #   end)
+  # end
 
   # build a 3D histogram from indexed 3-degrees (in_self_out)
-  @spec do_histo3d(G.verts(), degree_index3()) :: H.histo3d()
-  defp do_histo3d(verts, deg_index) do
-    Enum.reduce(verts, Histo3D.new(), fn i, h ->
-      Histo3D.inc(h, Map.fetch!(deg_index, i))
-    end)
+  @spec degree_histo3d(degree_index(), G.verts()) :: H.histo3d()
+  defp degree_histo3d(dindex, verts) do
+    Enum.reduce(verts, Histo3D.new(), fn i, h -> Histo3D.inc(h, dindex[i]) end)
+  end
+
+  # build a hash cache from indexed hashes
+  # hash cache is list of verts for a given hash key
+  @spec hash_cache(hash_index(), G.verts()) :: hash_cache()
+  defp hash_cache(hindex, verts) do
+    Enum.reduce(verts, Mos.new(), fn i, c -> Mos.add(c, hindex[i], i) end)
+  end
+
+  # build a hash histogram from indexed hashes
+  @spec graph_histo(hash_index(), G.verts()) :: H.histo()
+  defp graph_histo(hindex, verts) do
+    Enum.reduce(verts, Histo.new(), fn i, h -> Histo.inc(h, hindex[i]) end)
   end
 
   # hash any term to produce a 256-bit unsigned integer
