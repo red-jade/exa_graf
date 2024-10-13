@@ -879,6 +879,9 @@ defmodule Exa.Graf.Graf do
   # index of number of verts with a hash, to a list of hashes with that count
   @typep length_index() :: Mol.mol(E.count1(), G.hash())
 
+  # return type for isomorphism
+  @typep iso_result() :: :not_isomorphic | :undecided | {:isomorphic, G.vmap()}
+
   # local topology cache for vertex ins/outs having a hash
   # @typep local_hashes() :: {in_cache :: hash_cache(), out_cache :: hash_cache()}
 
@@ -904,7 +907,7 @@ defmodule Exa.Graf.Graf do
     histo2 = g2 |> degree_histo3d() |> Map.delete({1, 0, 1})
 
     if histo1 != histo2 do
-      :undecided
+      :not_homeomorphic
     else
       gc1 = contract_linears(g1)
       gc2 = contract_linears(g2)
@@ -941,8 +944,7 @@ defmodule Exa.Graf.Graf do
 
   If all tests pass, then calculate isomorphism, fail or timeout.
   """
-  @spec isomorphism(G.graph(), G.graph()) ::
-          :not_isomorphic | :undecided | {:isomorphic, G.vmap()}
+  @spec isomorphism(G.graph(), G.graph()) :: iso_result()
   def isomorphism(g1, g2) when is_graph(g1) and is_graph(g2) do
     with true <- nvert(g1) == nvert(g2),
          true <- nedge(g1) == nedge(g2),
@@ -995,66 +997,27 @@ defmodule Exa.Graf.Graf do
     # product of all permutations over hash equivalence classes
     # for every hash with n vertices, there are n! permutations
     # the num of hashes with that length will be the power of the factorial
-    Logger.info(fn ->
-      difficulty = Exa.Math.n_subpermutations(lol1)
-      "Isomorphism difficulty: #{difficulty}"
-    end)
-
-    nvert = length(verts1)
+    Logger.info(fn -> "Isomorphism difficulty: #{Exa.Combine.nsubperms(lol1)}" end)
     morf? = fn vmap -> morf?(vmap, nindex1, nindex2) end
-
-    case submaps(lol1, lol2, morf?) do
-      :not_isomorphic ->
-        :not_isomorphic
-
-      {:isomorphic, _} = iso ->
-        iso
-
-      submaps when is_list(submaps) ->
-        IO.inspect(submaps)
-
-        find_selection(
-          submaps,
-          fn vmap ->
-            if map_size(vmap) == nvert and morf?.(vmap) do
-              throw({:return, vmap})
-            else
-              vmap
-            end
-          end
-        )
-    end
-
-    # Logger.info(fn -> "Isomorphism candidates: #{length(vmaps)}" end)
-    # Logger.info(fn -> "Isomorphism attempts:   #{n}" end)
+    submaps(lol1, lol2, morf?)
   end
 
   # threshold for consistency check on partial sub-mapping
   # sub-lists equal or shorter will not be pre-checked
   @small_perm 3
 
-  # generate all sub-mappings (LoM) for equivalence classes (LoL)
-  @spec submaps([G.verts()], [G.verts()], E.predicate?()) :: [G.vmap()]
+  # search all sub-mappings (LoM) for equivalence classes (LoL)
+  @spec submaps([G.verts()], [G.verts()], E.predicate?()) :: iso_result()
 
   defp submaps([vl1], [vl2], morf?) do
     # all vertices in one equivalence class (e.g. Petersen)
     # just search permutations of the one list
+    Logger.info(fn -> "Isomorphism candidates: #{Exa.Combine.nperms(vl1)}" end)
 
-    # single permutation is just n! 
-    nvert = length(vl1)
-    Logger.info(fn -> "Isomorphism candidates: #{Exa.Math.fac(nvert)}" end)
-
-    find_permutation(
-      vl2,
-      fn
-        p2 when length(p2) == nvert ->
-          vmap = Exa.Map.zip_new(vl1, p2)
-          if morf?.(vmap), do: throw({:return, vmap}), else: p2
-
-        p2 ->
-          p2
-      end
-    )
+    find_permutation(vl2, 1, fn p2, n ->
+      vmap = Exa.Map.zip_new(vl1, p2)
+      if morf?.(vmap), do: throw({:return, {vmap, n}}), else: n + 1
+    end)
   end
 
   defp submaps(lol1, lol2, morf?) do
@@ -1066,62 +1029,58 @@ defmodule Exa.Graf.Graf do
         _, n -> {:cont, n}
       end)
 
-    morf? = if nlong in [0, 1], do: nil, else: morf?
-    do_sub(lol1, lol2, morf?, [])
+    bigmorf? = if nlong in [0, 1], do: nil, else: morf?
+    submaps = do_sub(lol1, lol2, bigmorf?, [])
+
+    Logger.info(fn -> "Isomorphism candidates: #{Exa.Combine.nselects(submaps)}" end)
+
+    find_selection(submaps, 1, fn ms, n ->
+      vmap = Enum.reduce(ms, &Map.merge(&1, &2))
+      if morf?.(vmap), do: throw({:return, {vmap, n}}), else: n + 1
+    end)
+
   end
 
-  @spec do_sub([G.verts()], [G.verts()], E.predicate?(), [G.vmap()]) :: [G.vmap()]
+  @spec do_sub([G.verts()], [G.verts()], E.predicate?(), [[G.vmap()]]) :: [[G.vmap()]]
 
   defp do_sub([vl1 | lol1], [vl2 | lol2], morf?, submaps) do
-    IO.inspect(Exa.Math.fac(length(vl2)), label: "n perms")
-
     subs =
-      vl2
-      |> Exa.Math.permutations()
-      |> Exa.List.filter_map(fn p2 ->
+      Exa.Combine.reduce_perms(vl2, [], fn p2, subs ->
         vmap = Exa.Map.zip_new(vl1, p2)
 
         cond do
-          map_size(vmap) <= @small_perm -> vmap
-          not is_nil(morf?) and morf?.(vmap) -> vmap
-          true -> nil
+          map_size(vmap) <= @small_perm -> [vmap | subs]
+          is_nil(morf?) -> [vmap | subs]
+          morf?.(vmap) -> [vmap | subs]
+          true -> subs
         end
       end)
 
-    IO.inspect(length(subs), label: "n subs ")
     do_sub(lol1, lol2, morf?, [subs | submaps])
   end
 
   defp do_sub([], [], _, submaps), do: Enum.reverse(submaps)
 
-  # generate selections of merged maps and return promptly if target is found
-
-  defp find_selection(lolmaps, terminate!) do
-    do_find_select(lolmaps, terminate!)
+  # find selection of merged maps and return promptly if target is found
+  @spec find_selection([[G.vmap()]], any(), E.predicate?()) :: iso_result()
+  defp find_selection(lol, init, terminate!) do
+    Exa.Combine.reduce_selects(lol, init, terminate!)
     :not_isomorphic
   catch
-    {:return, vmap} -> {:isomorphic, vmap}
+    {:return, {vmap, n}} ->
+      Logger.info(fn -> "Isomorphism attempts:   #{n}" end)
+      {:isomorphic, vmap}
   end
 
-  def do_find_select([hs | ts], terminate!) do
-    for h <- hs, t <- do_find_select(ts, terminate!), do: terminate!.(Map.merge(h, t))
-  end
-
-  def do_find_select([], _), do: [%{}]
-
-  # generate permutations and return promptly if target is found
-
-  defp find_permutation(ls, terminate!) do
-    do_find_perm(ls, terminate!)
+  # find permutation and return promptly if target is found
+  @spec find_permutation([G.verts()], any(), E.predicate?()) :: iso_result()
+  defp find_permutation(lol, init, terminate!) do
+    Exa.Combine.reduce_perms(lol, init, terminate!)
     :not_isomorphic
   catch
-    {:return, vmap} -> {:isomorphic, vmap}
-  end
-
-  def do_find_perm([], _), do: [[]]
-
-  def do_find_perm(ls, terminate!) do
-    for h <- ls, t <- do_find_perm(ls -- [h], terminate!), do: terminate!.([h | t])
+    {:return, {vmap, n}} ->
+      Logger.info(fn -> "Isomorphism attempts:   #{n}" end)
+      {:isomorphic, vmap}
   end
 
   # convert MoL index of length => list of hashes with that length
@@ -1138,9 +1097,7 @@ defmodule Exa.Graf.Graf do
 
   # test if a partial or total relabelling is consistent
   @spec morf?(G.vmap(), neigh_index(), neigh_index()) :: bool()
-
-  defp morf?(vmap, nindex1, nindex2) when map_size(vmap) == map_size(nindex1) do
-    # total relabelling
+  defp morf?(vmap, nindex1, nindex2) do
     Enum.all?(vmap, fn {i1, i2} ->
       {ins1, outs1} = nindex1[i1]
       {ins2, outs2} = nindex2[i2]
@@ -1148,28 +1105,11 @@ defmodule Exa.Graf.Graf do
     end)
   end
 
-  defp morf?(vmap, nindex1, nindex2) do
-    # partial relabelling
-    Enum.all?(vmap, fn {i1, i2} ->
-      {ins1, outs1} = nindex1[i1]
-      {ins2, outs2} = nindex2[i2]
-      subsetmorf?(vmap, ins1, ins2) and subsetmorf?(vmap, outs1, outs2)
-    end)
-  end
-
-  # test if total relabelling is consistent for two vertex sets
+  # test if total or partial relabelling is consistent for two vertex sets
   # equivalent to map and equality test, but in a single pass
   @spec setmorf?(G.vmap(), G.vset(), G.vset()) :: bool()
   defp setmorf?(vmap, vs1, vs2) do
-    # we know all args have the same size and hold distinct values
-    # so subset test is equivalent to equality
-    Enum.all?(vs1, fn i1 -> is_set_member(vs2, vmap[i1]) end)
-  end
-
-  # test if partial relabelling is consistent for two vertex sets
-  # equivalent to map and equality test, but in a single pass
-  @spec subsetmorf?(G.vmap(), G.vset(), G.vset()) :: bool()
-  defp subsetmorf?(vmap, vs1, vs2) do
+    # could remove the map key test for total tests
     Enum.all?(vs1, fn i1 -> not is_map_key(vmap, i1) or is_set_member(vs2, vmap[i1]) end)
   end
 
@@ -1239,15 +1179,12 @@ defmodule Exa.Graf.Graf do
   # build indexes of the local neighborhood and degrees
   @spec indexes(G.graph(), G.verts()) :: indexes()
   defp indexes(g, verts) do
-    {nindex, dindex} =
-      Enum.reduce(verts, {%{}, %{}}, fn i, {nindex, dindex} ->
-        {ins, self, outs} = neighborhood(g, i, :in_self_out)
-        self_deg = if is_nil(self), do: 0, else: 1
-        deg3 = {MapSet.size(ins), self_deg, MapSet.size(outs)}
-        {Map.put(nindex, i, {ins, outs}), Map.put(dindex, i, deg3)}
-      end)
-
-    {nindex, dindex}
+    Enum.reduce(verts, {%{}, %{}}, fn i, {nindex, dindex} ->
+      {ins, self, outs} = neighborhood(g, i, :in_self_out)
+      self_deg = if is_nil(self), do: 0, else: 1
+      deg3 = {MapSet.size(ins), self_deg, MapSet.size(outs)}
+      {Map.put(nindex, i, {ins, outs}), Map.put(dindex, i, deg3)}
+    end)
   end
 
   # build hash index of vertex to its hash

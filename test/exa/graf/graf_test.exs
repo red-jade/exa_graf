@@ -327,7 +327,6 @@ defmodule Exa.Graf.GrafTest do
 
   test "iso cycles" do
     for nhop <- [0, 1] do
-      IO.inspect(nhop, label: "\n\nNHOP")
       # build 3-cycle, with self-loops on different vertices
       g1 = new(:adj, "iso1") |> add({1, 1, 2, 3, 1})
       h1 = hash(g1, nhop)
@@ -343,7 +342,6 @@ defmodule Exa.Graf.GrafTest do
       assert h3 == h1
 
       iso = isomorphism(g1, g2)
-      IO.inspect(iso, label: "isomorf")
       {:isomorphic, vmap} = iso
       isovalid(g1, g2, vmap)
     end
@@ -360,7 +358,6 @@ defmodule Exa.Graf.GrafTest do
     pA = add(peter, {1, 1})
     pB = add(peter, {5, 5})
     iso = isomorphism(pA, pB)
-    IO.inspect(iso, label: "Petersen self-loop")
     {:isomorphic, vmap} = iso
     isovalid(pA, pB, vmap)
 
@@ -369,14 +366,12 @@ defmodule Exa.Graf.GrafTest do
     # symmetries  5! =       120
     # av attempts ~~      30,240
 
-    # l10 = Range.to_list(1..10)
-    # randmap = Exa.Map.zip_new(l10, Enum.shuffle(l10))
-    # rpeet = relabel(peter, randmap)
-    # iso = isomorphism(peter, rpeet)
-    # IO.inspect(iso)
-    # IO.inspect(iso, label: "Petersen offset")
-    # {:isomorphic, vmap} = iso
-    # isovalid(peter, rpeet, vmap)
+    l10 = Range.to_list(1..10)
+    randmap = Exa.Map.zip_new(l10, Enum.shuffle(l10))
+    rpeet = relabel(peter, randmap)
+    iso = isomorphism(peter, rpeet)
+    {:isomorphic, vmap} = iso
+    isovalid(peter, rpeet, vmap)
   end
 
   test "iso cycle handles" do
@@ -399,11 +394,11 @@ defmodule Exa.Graf.GrafTest do
     lt2 = new(:adj, "lt2") |> add([{1, 2, 3, 4, 1}, {4, 5, 6}])
 
     assert degree_histo3d(lt1) == degree_histo3d(lt1)
-    assert :undecided == homeomorphic?(lt1, lt2)
+    assert :homeomorphic == homeomorphic?(lt1, lt2)
 
     # two loops linked
     ll = new(:adj, "ll") |> add([{1, 2, 3, 1}, {3, 4}, {4, 5, 6, 4}])
-    assert not homeomorphic?(lt1, ll)
+    assert :not_homeomorphic = homeomorphic?(lt1, ll)
   end
 
   # join ----------

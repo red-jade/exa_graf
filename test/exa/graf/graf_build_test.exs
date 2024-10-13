@@ -109,9 +109,9 @@ defmodule Exa.Graf.GrafBuildTest do
   test "fan in/out iso" do
     fin = GrafBuild.fan_in(:adj, @n)
     fout = GrafBuild.fan_out(:adj, @n)
-    assert :undecided == Graf.isomorphic?(fin, fin)
-    assert :undecided == Graf.isomorphic?(fout, fout)
-    assert false == Graf.isomorphic?(fin, fout)
+    assert {:isomorphic, _} = Graf.isomorphism(fin, fin)
+    assert {:isomorphic, _} = Graf.isomorphism(fout, fout)
+    assert :not_isomorphic == Graf.isomorphism(fin, fout)
   end
 
   test "wheel" do
