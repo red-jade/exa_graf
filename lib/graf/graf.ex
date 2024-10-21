@@ -26,6 +26,8 @@ defmodule Exa.Graf.Graf do
   alias Exa.Types, as: E
 
   import Exa.Dispatch, only: [dispatch: 4, dispatch: 3]
+  alias Exa.Exec
+
   import Exa.Graf.Types
   alias Exa.Graf.Types, as: G
 
@@ -50,6 +52,9 @@ defmodule Exa.Graf.Graf do
   # ---------
   # constants
   # ---------
+
+  # default maximum elapsed time for an isomorphism search
+  @iso_timeout 20_000
 
   # dispatch map from tag to implementation module
   @disp %{:adj => Adj, :dig => Dig}
@@ -944,8 +949,9 @@ defmodule Exa.Graf.Graf do
 
   If all tests pass, then calculate isomorphism, fail or timeout.
   """
-  @spec isomorphism(G.graph(), G.graph()) :: iso_result()
-  def isomorphism(g1, g2) when is_graph(g1) and is_graph(g2) do
+  @spec isomorphism(G.graph(), G.graph(), E.timout1()) :: iso_result()
+  def isomorphism(g1, g2, dt \\ @iso_timeout)
+      when is_graph(g1) and is_graph(g2) and is_timeout1(dt) do
     with true <- nvert(g1) == nvert(g2),
          true <- nedge(g1) == nedge(g2),
          verts1 = verts(g1),
@@ -959,8 +965,14 @@ defmodule Exa.Graf.Graf do
          # hash(g1,1) == hash(g2,1)
          {hindex1, g1hash1} <- do_hash1(idxs1, verts1),
          {hindex2, g2hash1} <- do_hash1(idxs2, verts2),
-         true <- g1hash1 == g2hash1 do
-      do_isomorphism(verts1, verts2, nindex1, nindex2, hindex1, hindex2)
+         true <- g1hash1 == g2hash1,
+         gdata = [verts1, verts2, nindex1, nindex2, hindex1, hindex2] do
+
+      case Exec.exec(&do_isomorphism/6, gdata) |> Exec.recv(dt) do
+        {:ok, iso_or_not} -> iso_or_not
+        {:timeout, _} -> :undecided
+        {:error, err} -> raise(RuntimeError, message: inspect(err))
+      end
     else
       false -> :not_isomorphic
     end
@@ -974,7 +986,7 @@ defmodule Exa.Graf.Graf do
           hash_index(),
           hash_index()
         ) ::
-          :not_isomorphic | :undecided | {:isomorphic, G.vmap()}
+          :not_isomorphic | {:isomorphic, G.vmap()}
   defp do_isomorphism(verts1, verts2, nindex1, nindex2, hindex1, hindex2) do
     # hash cache is MoS of hash => set of vertices with the hash
     hcache1 = hash_cache(hindex1, verts1)
@@ -1013,11 +1025,21 @@ defmodule Exa.Graf.Graf do
     # all vertices in one equivalence class (e.g. Petersen)
     # just search permutations of the one list
     Logger.info(fn -> "Isomorphism candidates: #{Exa.Combine.nperms(vl1)}" end)
+    # accumulator is just the number of attempted matches
+    perm =
+      Exa.Combine.find_permutation(vl2, 1, fn p2, n ->
+        vmap = Exa.Map.zip_new(vl1, p2)
+        if morf?.(vmap), do: throw({:return, {vmap, n}}), else: n + 1
+      end)
 
-    find_permutation(vl2, 1, fn p2, n ->
-      vmap = Exa.Map.zip_new(vl1, p2)
-      if morf?.(vmap), do: throw({:return, {vmap, n}}), else: n + 1
-    end)
+    {result, n} =
+      case perm do
+        {:no_match, n} -> {:not_isomorphic, n}
+        {:ok, {vmap, n}} -> {{:isomorphic, vmap}, n}
+      end
+
+    Logger.info(fn -> "Isomorphism attempts:   #{n}" end)
+    result
   end
 
   defp submaps(lol1, lol2, morf?) do
@@ -1031,14 +1053,22 @@ defmodule Exa.Graf.Graf do
 
     bigmorf? = if nlong in [0, 1], do: nil, else: morf?
     submaps = do_sub(lol1, lol2, bigmorf?, [])
-
     Logger.info(fn -> "Isomorphism candidates: #{Exa.Combine.nselects(submaps)}" end)
 
-    find_selection(submaps, 1, fn ms, n ->
-      vmap = Enum.reduce(ms, &Map.merge(&1, &2))
-      if morf?.(vmap), do: throw({:return, {vmap, n}}), else: n + 1
-    end)
+    sel =
+      Exa.Combine.find_selection(submaps, 1, fn ms, n ->
+        vmap = Enum.reduce(ms, &Map.merge(&1, &2))
+        if morf?.(vmap), do: throw({:return, {vmap, n}}), else: n + 1
+      end)
 
+    {result, n} =
+      case sel do
+        {:no_match, n} -> {:not_isomorphic, n}
+        {:ok, {vmap, n}} -> {{:isomorphic, vmap}, n}
+      end
+
+    Logger.info(fn -> "Isomorphism attempts:   #{n}" end)
+    result
   end
 
   @spec do_sub([G.verts()], [G.verts()], E.predicate?(), [[G.vmap()]]) :: [[G.vmap()]]
@@ -1060,28 +1090,6 @@ defmodule Exa.Graf.Graf do
   end
 
   defp do_sub([], [], _, submaps), do: Enum.reverse(submaps)
-
-  # find selection of merged maps and return promptly if target is found
-  @spec find_selection([[G.vmap()]], any(), E.predicate?()) :: iso_result()
-  defp find_selection(lol, init, terminate!) do
-    Exa.Combine.reduce_selects(lol, init, terminate!)
-    :not_isomorphic
-  catch
-    {:return, {vmap, n}} ->
-      Logger.info(fn -> "Isomorphism attempts:   #{n}" end)
-      {:isomorphic, vmap}
-  end
-
-  # find permutation and return promptly if target is found
-  @spec find_permutation([G.verts()], any(), E.predicate?()) :: iso_result()
-  defp find_permutation(lol, init, terminate!) do
-    Exa.Combine.reduce_perms(lol, init, terminate!)
-    :not_isomorphic
-  catch
-    {:return, {vmap, n}} ->
-      Logger.info(fn -> "Isomorphism attempts:   #{n}" end)
-      {:isomorphic, vmap}
-  end
 
   # convert MoL index of length => list of hashes with that length
   # and     MoL index of hash   => list of vertices with that hash 

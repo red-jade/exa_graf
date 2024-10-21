@@ -372,6 +372,9 @@ defmodule Exa.Graf.GrafTest do
     iso = isomorphism(peter, rpeet)
     {:isomorphic, vmap} = iso
     isovalid(peter, rpeet, vmap)
+
+    iso = isomorphism(peter, rpeet, 200)
+    assert :undecided == iso
   end
 
   test "iso cycle handles" do
