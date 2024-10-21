@@ -52,13 +52,20 @@ and breadth-first search (BFS):
 - cyclic test
 
 Build 1D, 2D and 3D histograms from vertex degrees.
-Use the 3D in-self-out adjacency histogram
-to create a topology hash for the graph,
-and use the hash for a simple isomorphism test.
+
+Generate topological hashes for a graph using
+in/out degree histograms:
+- 0-hop: for each vertex
+- 1-hop: for each vertex and its in/out neighbors
+
+Find isomorphism between two graphs by using hashes for quick rejection tests,
+then permuting vertices in hash equivalence classes 
+to find a vertex relabelling that makes the graphs equal.
 
 Contract edges and linear nodes.
 Test topological equivalence (homeomorphism) 
-by comparing full contractions of all linear edges.
+by contracting all linear edges
+then comparing for isomorphism.
 
 Relabelling of graphs to permute vertex identifiers.
 Combining graphs using _merge_ of vertices and edges,
