@@ -122,8 +122,14 @@ stored in ETS. Deleting an adj graph is a no-op.
 
 ## Building
 
-To bootstrap an `exa_xxx` library build, 
-you must update dependencies twice.
+**To bootstrap an `exa_xxx` library build,**<br>
+**you must update dependencies twice.**
+
+One way to start a build is:
+```
+  $ mix deps.update exa
+  $ mix deps.get
+```
 
 ## EXA License
 
