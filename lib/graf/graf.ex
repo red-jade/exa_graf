@@ -949,7 +949,7 @@ defmodule Exa.Graf.Graf do
 
   If all tests pass, then calculate isomorphism, fail or timeout.
   """
-  @spec isomorphism(G.graph(), G.graph(), E.timout1()) :: iso_result()
+  @spec isomorphism(G.graph(), G.graph(), E.timeout1()) :: iso_result()
   def isomorphism(g1, g2, dt \\ @iso_timeout)
       when is_graph(g1) and is_graph(g2) and is_timeout1(dt) do
     with true <- nvert(g1) == nvert(g2),
