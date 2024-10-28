@@ -339,11 +339,11 @@ defmodule Exa.Graf.Graf do
   Invert a component map to give the index of vertices to their component id.
   """
   @spec component_index(G.components()) :: G.component_index()
-  def component_index(comps) when is_mos(comps) do 
+  def component_index(comps) when is_mos(comps) do
     # not just Mos.invert, because we don't want singleton set values
-    Enum.reduce(comps, %{}, fn {icomp, iset}, index -> 
-         Enum.reduce(iset, index, fn i, index -> Map.put(index, i, icomp) end)
-       end)
+    Enum.reduce(comps, %{}, fn {icomp, iset}, index ->
+      Enum.reduce(iset, index, fn i, index -> Map.put(index, i, icomp) end)
+    end)
   end
 
   @doc """
@@ -363,7 +363,8 @@ defmodule Exa.Graf.Graf do
   @spec component_edges(G.graph(), G.components()) :: %{G.edge() => G.comp_edge()}
   def component_edges(g, comps) when is_graph(g) and is_mos(comps) do
     index = component_index(comps)
-    Enum.reduce(edges(g), %{}, fn {i,j}=e, emap -> 
+
+    Enum.reduce(edges(g), %{}, fn {i, j} = e, emap ->
       Map.put(emap, e, {index[i], index[j]})
     end)
   end

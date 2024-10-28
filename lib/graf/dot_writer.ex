@@ -282,7 +282,7 @@ defmodule Exa.Graf.DotWriter do
   end
 
   # assume CSS4 colors are subset of dot colors
-  defp val({name, _col3b}=col) when is_col3name(col), do: T.term_to_text(name)
+  defp val({name, _col3b} = col) when is_col3name(col), do: T.term_to_text(name)
 
   defp val(col) when is_col3b(col), do: [?", Col3b.to_hex(col, :rgb), ?"]
 

@@ -36,6 +36,18 @@ defmodule Exa.Graf.Draw do
   # ----------------
 
   @doc """
+  Draw a graph.
+
+  Convert a graph to a DOT file and render to an image.
+  """
+  @spec graph(G.graph(), E.filename(), D.graph_attrs(), D.format()) :: E.filename()
+  def graph(g, outdir, attrs \\ %{}, fmt \\ :png)
+      when is_graph(g) and is_map(attrs) and
+             is_atom(fmt) do
+    g |> Graf.to_dot_file(outdir, attrs) |> elem(0) |> DotRender.render_dot(fmt, outdir)
+  end
+
+  @doc """
   Draw a graph using colors based on components.
 
   Convert a graph to a DOT file and render to an image.
@@ -50,37 +62,42 @@ defmodule Exa.Graf.Draw do
   The default color is used for edges that span between components 
   (only required for strongly connected components).
   """
-  @spec by_components(G.graph(), G.components(), E.filename(), 
-    [D.dot_color()], D.dot_color(), D.format()) :: E.filename()
-  def by_components(g, comp, outdir, cols \\ @defcols, defcol \\ @defdef, format \\ @deffmt) 
-    when is_graph(g) and is_map(comp) and is_list(cols) and is_atom(format) and
-     map_size(comp) <= length(cols) do
-
+  @spec by_components(
+          G.graph(),
+          G.components(),
+          E.filename(),
+          [D.dot_color()],
+          D.dot_color(),
+          D.format()
+        ) :: E.filename()
+  def by_components(g, comp, outdir, cols \\ @defcols, defcol \\ @defdef, fmt \\ @deffmt)
+      when is_graph(g) and is_map(comp) and is_list(cols) and is_atom(fmt) and
+             map_size(comp) <= length(cols) do
     # build a colormap
     cmap = comp |> Map.keys() |> Enum.sort() |> Enum.zip(cols) |> Map.new()
 
     # color nodes in each component
-    attrs = Enum.reduce(comp, %{}, fn {icomp, iset}, attrs ->
-      col = cmap[icomp]
-      node = [color: col, fontcolor: col]
-      Enum.reduce(iset, attrs, fn i, attrs -> Map.put(attrs, i, node) end)
-    end) 
+    attrs =
+      Enum.reduce(comp, %{}, fn {icomp, iset}, attrs ->
+        col = cmap[icomp]
+        node = [color: col, fontcolor: col]
+        Enum.reduce(iset, attrs, fn i, attrs -> Map.put(attrs, i, node) end)
+      end)
 
     # color each edge according to component embedding
-    attrs = g
-    |> Graf.component_edges(comp)
-    |> Enum.reduce(attrs, fn {e, ecomp}, attrs ->
-        col = case ecomp do
-          {icomp, icomp} -> cmap[icomp]
-          _ -> defcol
-        end
-        Map.put(attrs, e, [color: col])
-      end) 
-
-    # render the graph
+    attrs =
       g
-      |> Graf.to_dot_file(outdir, attrs)
-      |> elem(0)
-      |> DotRender.render_dot(format, outdir)
+      |> Graf.component_edges(comp)
+      |> Enum.reduce(attrs, fn {e, ecomp}, attrs ->
+        col =
+          case ecomp do
+            {icomp, icomp} -> cmap[icomp]
+            _ -> defcol
+          end
+
+        Map.put(attrs, e, color: col)
+      end)
+
+    graph(g, outdir, attrs, fmt)
   end
 end
