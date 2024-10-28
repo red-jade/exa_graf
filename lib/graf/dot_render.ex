@@ -13,8 +13,16 @@ defmodule Exa.Graf.DotRender do
 
   alias Exa.Graf.DotTypes, as: D
 
+  # ---------
+  # constants
+  # ---------
+
   # the GraphViz DOT executable
   @exe :dot
+
+  # ----------------
+  # public functions
+  # ----------------
 
   @doc """
   Render a DOT file to image or other output format.

@@ -154,9 +154,10 @@ defmodule Exa.Graf.GrafBuild do
     # force every vertex to have at least one edge
     # ensuring that the whole graph is (weakly) connected
     # no need to declare vertices, because they all occur in edges
+    # exclude self edges
     1..n
     |> Enum.reduce(g, fn i, g ->
-      Graf.add(g, {i, Random.rndint(n, i)})
+      Graf.add(g, {i, Random.uniform_intex(n, i)})
     end)
     |> erandom(n, m - n)
   end
@@ -166,8 +167,8 @@ defmodule Exa.Graf.GrafBuild do
   defp erandom(g, _n, 0), do: g
 
   defp erandom(g, n, k) do
-    i = Random.rndint(n)
-    j = Random.rndint(n, i)
+    i = Random.uniform_int(n)
+    j = Random.uniform_intex(n, i)
 
     if Graf.edge?(g, {i, j}) do
       erandom(g, n, k)

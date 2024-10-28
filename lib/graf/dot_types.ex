@@ -18,7 +18,7 @@ defmodule Exa.Graf.DotTypes do
   @typedoc """
   Key for attribute map: 
   - graph/subgraph name
-  - node or edge
+  - node or edge data value
   - `:node` or `:edge` global property keys
   """
   @type gkey() :: :node | :edge | G.vert() | G.edge() | G.gname()
@@ -30,8 +30,33 @@ defmodule Exa.Graf.DotTypes do
   - graph attribute: `"mydot" => [{:size, {4,4}}, {:rankdir, :TB}]`
   - node attributes: `3 => [{:label, "foo", {:color, "red"}, {:shape, :ellipse}]`
   - edge attributes: `{1,3} => [{:style, :dashed}, {:direction, :both}]`
+
+  See the [Dot Guide](https://graphviz.org/pdf/dotguide.pdf) 
+  for a full list of attribute keys.
+
+  Many enumerated values are mapped to atoms,
+  and provided as explicit types in this module. 
+
+  Color values are defined by `dot_color()`.
   """
   @type graph_attrs() :: %{gkey() => attr_kw()}
+
+  @typedoc """
+  Color values can be:
+  - `col3f` RGB float tuple
+  - `col3b` RGB byte tuple
+  - `col3name` named CSS4 RGB byte color
+  - `hex3` string describing RGB byte color
+  - name string
+
+  DOT color names are based on the X11 color palette,
+  which is a superset of the CSS 4 named colors
+  (similar names, but allowing suffix 1-4). 
+
+  See the [Dot Guide](https://graphviz.org/pdf/dotguide.pdf),
+  or the [color list](www.graphviz.org/doc/info/colors.html) for details. 
+  """
+  @type dot_color() :: C.col3b() | C.col3f() | C.col3name() | C.hex3() | String.t()
 
   @typedoc """
   Index of alias names to integer id.
@@ -39,8 +64,11 @@ defmodule Exa.Graf.DotTypes do
 
   The 'alias' is the identifier used in the DOT file,
   when the node name is not a raw integer.
+  An alias must follow the rules for DOT identifiers:
+  alphanumeric/underscore string not starting with a number.
 
-  The 'label' is an optional arbitrary string, which can be multi-line.
+  The 'label' is an optional arbitrary string attribute, 
+  which can be multi-line.
   A node with an integer id may have an alias, or a label, or both.
   """
   @type aliases() :: %{String.t() => G.vert()}

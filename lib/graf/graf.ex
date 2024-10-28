@@ -38,6 +38,8 @@ defmodule Exa.Graf.Graf do
   alias Exa.Std.Histo3D
   alias Exa.Std.Tidal
   alias Exa.Std.Mol
+
+  import Exa.Std.Mos
   alias Exa.Std.Mos
 
   alias Exa.Graf.Adj
@@ -332,6 +334,39 @@ defmodule Exa.Graf.Graf do
   """
   @spec isolated?(G.graph(), G.vert()) :: bool()
   def isolated?(g, i), do: classify(g, i) in [:isolated, :self_isolated]
+
+  @doc """
+  Invert a component map to give the index of vertices to their component id.
+  """
+  @spec component_index(G.components()) :: G.component_index()
+  def component_index(comps) when is_mos(comps) do 
+    # not just Mos.invert, because we don't want singleton set values
+    Enum.reduce(comps, %{}, fn {icomp, iset}, index -> 
+         Enum.reduce(iset, index, fn i, index -> Map.put(index, i, icomp) end)
+       end)
+  end
+
+  @doc """
+  Lift edges to the equivalent component edge,
+  where the two endpoints are lifted to their component id.
+
+  An edge within one component will be mapped to 
+  a self-loop on the component.
+
+  If the components are _weak,_ 
+  there will be no edges spanning components,
+  so all component edges will be self-loops.
+
+  The component edges (without repeats) 
+  are the edges of the _condensation_ graph.
+  """
+  @spec component_edges(G.graph(), G.components()) :: %{G.edge() => G.comp_edge()}
+  def component_edges(g, comps) when is_graph(g) and is_mos(comps) do
+    index = component_index(comps)
+    Enum.reduce(edges(g), %{}, fn {i,j}=e, emap -> 
+      Map.put(emap, e, {index[i], index[j]})
+    end)
+  end
 
   @doc """
   Test if a graph is a connected tree.
@@ -967,7 +1002,6 @@ defmodule Exa.Graf.Graf do
          {hindex2, g2hash1} <- do_hash1(idxs2, verts2),
          true <- g1hash1 == g2hash1,
          gdata = [verts1, verts2, nindex1, nindex2, hindex1, hindex2] do
-
       case Exec.exec(&do_isomorphism/6, gdata) |> Exec.recv(dt) do
         {:ok, iso_or_not} -> iso_or_not
         {:timeout, _} -> :undecided
@@ -1299,7 +1333,7 @@ defmodule Exa.Graf.Graf do
     DotReader.from_dot_file(tag, filename)
   end
 
-  @doc "Read an graph from an ADJ file in Elixir literal format."
+  @doc "Read a graph from an ADJ file in Elixir literal format."
   @spec from_adj_file(G.gtype(), E.filename()) :: G.graph() | {:error, any()}
   def from_adj_file(tag \\ :adj, filename) when is_gtype(tag) and is_filename(filename) do
     case Adj.from_adj_file(filename) do

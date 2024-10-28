@@ -359,6 +359,14 @@ defmodule Exa.Graf.Types do
   @type comp_id() :: vert()
 
   @typedoc """
+  A component edge is an edge between two components.
+
+  The source and destination vertices are mapped to their component id,
+  so the data format is the same as for a regular edge.
+  """
+  @type comp_edge() :: {comp_id(), comp_id()}
+
+  @typedoc """
   A component is a weakly/strongly connected set of vertices.
 
   We choose the minimum vertex id in the component 

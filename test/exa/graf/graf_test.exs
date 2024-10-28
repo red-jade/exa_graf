@@ -255,6 +255,8 @@ defmodule Exa.Graf.GrafTest do
       assert 3 == ncomp(g, :weak)
       assert 3 == map_size(comps)
       assert %{1 => [1], 2 => [2, 3], 4 => [4, 5, 6]} == Mol.sort(comps)
+      index = component_index(comps)
+      IO.inspect(index)
     end
   end
 
