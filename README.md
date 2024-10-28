@@ -74,11 +74,25 @@ or _disjoint_ independent addition.
 Serialization of _adj_ data to/from files 
 using Elixir term format.
 
+## Drawing
+
 Serialization to/from GraphViz DOT format.
 
 Rendering of GraphViz DOT files 
 to PNG, SVG images and other formats
 (if you have GraphViz DOT installed).
+
+Drawing can use structural properties of the graph
+to determine colors and styles.
+For example, color nodes and edges based on components.
+
+Here is a graph with 3 weakly connected components:
+
+![weak components](./assets/comp123.png)
+
+This graph has 3 strongly connected components:
+
+![weak components](./assets/wiki_scc.png)
 
 ## Graph Mutability
 
