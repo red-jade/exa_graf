@@ -254,8 +254,18 @@ defmodule Exa.Graf.Types do
 
   Frontiers are disjoint, 
   there is no vertex that appears in more than one frontier.
+
+  Note Frontiers have the same basic type as Components: 
+
+  `%{non_neg_int() => vset()}`
+
+  The only differences are:
+  - Frontiers always have an entry for `0`, 
+    but there is no vertex 0, so Components never have a `0` entry.
+  - Frontiers are often incomplete, because there are vertices
+    not included in any frontier, but components are always complete.
   """
-  @type frontiers() :: %{E.count() => vset()}
+  @type frontiers() :: Exa.Std.Mos.mos(E.count(), vert())
 
   @typedoc """
   Connectivity for components:
@@ -359,14 +369,6 @@ defmodule Exa.Graf.Types do
   @type comp_id() :: vert()
 
   @typedoc """
-  A component edge is an edge between two components.
-
-  The source and destination vertices are mapped to their component id,
-  so the data format is the same as for a regular edge.
-  """
-  @type comp_edge() :: {comp_id(), comp_id()}
-
-  @typedoc """
   A component is a weakly/strongly connected set of vertices.
 
   We choose the minimum vertex id in the component 
@@ -377,12 +379,64 @@ defmodule Exa.Graf.Types do
   """
   @type components() :: Exa.Std.Mos.mos(comp_id(), vert())
 
-  @typedoc """
-  An index of the component id for every vertex.
+  # partition ----------
 
-  The index is the inverse of the components map.
+  # TODO - forests, classifications
+
+  @typedoc """
+  A partition is a map from a partition id to 
+  disjoint sets of vertices.
+
+  The partition may be:
+  - total: includes all vertices
+  - partial: has some missing vertices
+
+  There are several different kinds of partitions:
+  - Components have vertex ids for keys (1-based integers).
+    Components are always total partitions.
+  - Frontiers have hop distance for keys (0-based count).
+    Frontiers are usually partial, because vertices 
+    not accessible from the source vertex are missing.
+    Frontiers always have an entry for `0`.
   """
-  @type component_index() :: %{vert() => comp_id()}
+  @type partition() :: components() | frontiers()
+
+  @typedoc """
+  A partition is a disjoint partition of vertices,
+  such as components, frontiers or classifications:
+  ```
+  %{part_id() => vset()}
+  ```
+
+  The partition id (label, key) may be:
+  - component id (1-based vertex id)
+  - frontier hop (0-based count)
+  - vertex classification (enumerated atom)
+  """
+  @type part_id() :: atom() | non_neg_integer()
+
+  @typedoc """
+  A partition edge is a directed edge between partitions.
+  The endpoints are partition ids.
+  """
+  @type part_edge() :: {atom(), atom()} | {non_neg_integer(), non_neg_integer()}
+
+  @typedoc """
+  An index of a partition for every vertex and every edge.
+
+  Partition indexes are inverses of partition maps.
+
+  The indexes always have a complete set of keys for all vertices and edges.
+  If the partition is partial, then the indexes will contain `nil` values.
+  A vertex will have a `nil` value if it is missing from the partition.
+  An edge will have a `nil` value if any of its endpoints is missing.
+  """
+  @type partition_index() :: {
+          %{vert() => nil | part_id()},
+          %{edge() => {nil | part_id(), nil | part_id()}}
+        }
+
+  # forest ----------
 
   @typedoc """
   A spanning forest is a sequence of directed rooted trees.

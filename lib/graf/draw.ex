@@ -10,6 +10,8 @@ defmodule Exa.Graf.Draw do
 
   alias Exa.Types, as: E
 
+  alias Exa.Std.Mol
+
   import Exa.Graf.Types
   alias Exa.Graf.Types, as: G
 
@@ -29,7 +31,23 @@ defmodule Exa.Graf.Draw do
   @defdef "gray80"
 
   # default color sequence for components
-  @defcols ["darkred", "darkgreen", "darkblue", "darkgoldenrod", "darkviolet"]
+  @defcols [
+    "darkred",
+    "darkgreen",
+    "darkblue",
+    "darkgoldenrod",
+    "darkviolet",
+    "firebrick",
+    "darkolivegreen",
+    "darkcyan",
+    "darkorange",
+    "darkmagenta",
+    "brown",
+    "cadetblue",
+    "darkslateblue",
+    "gold",
+    "darkorchid"
+  ]
 
   # ----------------
   # public functions
@@ -40,62 +58,97 @@ defmodule Exa.Graf.Draw do
 
   Convert a graph to a DOT file and render to an image.
   """
-  @spec graph(G.graph(), E.filename(), D.graph_attrs(), D.format()) :: E.filename()
+  @spec graph(G.graph(), E.filename(), D.graph_attrs(), D.format()) ::
+          E.filename() | {:error, any()}
   def graph(g, outdir, attrs \\ %{}, fmt \\ :png)
-      when is_graph(g) and is_map(attrs) and
-             is_atom(fmt) do
-    g |> Graf.to_dot_file(outdir, attrs) |> elem(0) |> DotRender.render_dot(fmt, outdir)
+      when is_graph(g) and is_map(attrs) and is_atom(fmt) do
+    case Graf.to_dot_file(g, outdir, attrs) do
+      {:error, _} = err -> err
+      {dot, _text} -> DotRender.render_dot(dot, fmt, outdir)
+    end
   end
 
   @doc """
-  Draw a graph using colors based on components.
+  Draw a graph using colors based on partitions of the graph. 
+
+  A partition is a map of non-negative integers to 
+  disjoint sets of vertices.
+  A partition can be Components or Frontiers.
 
   Convert a graph to a DOT file and render to an image.
-  Use colors of nodes and edges to distinguish components.
+  Use colors of nodes and edges to distinguish partitions.
 
-  Colors are assigned to the sorted list of component ids.
-  There should be at least as many colors as components.
+  Colors are assigned to the sorted list of partition keys 
+  (component ids or frontier hop).
+  There should be at least as many colors as partitions,
+  but if not, the colors are cycled.
 
-  Nodes are given the color of their component (stroke and label).
-  Edges within one component are also given the component color.
+  Nodes are given the color of their partition (stroke and label).
+  Edges within one partition are also given the component color.
 
-  The default color is used for edges that span between components 
+  The default color is used for edges that span between partitions 
   (only required for strongly connected components).
+
+  Components are always complete: every vertex is in a partition.
+  Frontiers are not necessarily complete:
+  there are some vertices not in any value set, 
+  they will also get the default color.
+
+  The default attributes may contain global graph values 
+  (such as size, layout, node/edge defaults) 
+  or non-color properties for specific nodes or edges.
+  For example, frontier partition may want to highlight 
+  the shape or fill of the source vertex.
   """
-  @spec by_components(
+  @spec partitions(
           G.graph(),
-          G.components(),
+          G.partition(),
           E.filename(),
+          D.graph_attrs(),
           [D.dot_color()],
           D.dot_color(),
           D.format()
         ) :: E.filename()
-  def by_components(g, comp, outdir, cols \\ @defcols, defcol \\ @defdef, fmt \\ @deffmt)
-      when is_graph(g) and is_map(comp) and is_list(cols) and is_atom(fmt) and
-             map_size(comp) <= length(cols) do
-    # build a colormap
-    cmap = comp |> Map.keys() |> Enum.sort() |> Enum.zip(cols) |> Map.new()
+  def partitions(
+        g,
+        parts,
+        outdir,
+        def_attrs \\ %{},
+        cols \\ @defcols,
+        defcol \\ @defdef,
+        fmt \\ @deffmt
+      )
+      when is_graph(g) and is_map(parts) and is_list(cols) and is_atom(fmt) and
+             map_size(parts) <= length(cols) do
+    # invert the partition
+    {vidx, eidx} = Graf.partition(g, parts)
 
-    # color nodes in each component
+    # build colormap for partitions
+    cmap = parts |> Map.keys() |> Exa.List.zip_cyclic(cols) |> Map.new()
+
+    # note that DOT semantics seems to be that for repeated properties
+    # the last attribute value dominates over previous values
+    # so prepends does not overwrite existing default attributes
+
+    # color vertices in each partition
     attrs =
-      Enum.reduce(comp, %{}, fn {icomp, iset}, attrs ->
-        col = cmap[icomp]
-        node = [color: col, fontcolor: col]
-        Enum.reduce(iset, attrs, fn i, attrs -> Map.put(attrs, i, node) end)
+      Enum.reduce(vidx, def_attrs, fn
+        {i, nil}, attrs ->
+          Mol.prepends(attrs, i, color: defcol, fontcolor: defcol)
+
+        {i, ipart}, attrs ->
+          col = cmap[ipart]
+          Mol.prepends(attrs, i, color: col, fontcolor: col)
       end)
 
-    # color each edge according to component embedding
+    # color edges in each partition
     attrs =
-      g
-      |> Graf.component_edges(comp)
-      |> Enum.reduce(attrs, fn {e, ecomp}, attrs ->
-        col =
-          case ecomp do
-            {icomp, icomp} -> cmap[icomp]
-            _ -> defcol
-          end
+      Enum.reduce(eidx, attrs, fn
+        {e, {ipart, _j_or_nil}}, attrs when not is_nil(ipart) ->
+          Mol.prepends(attrs, e, color: cmap[ipart])
 
-        Map.put(attrs, e, color: col)
+        {e, {nil, _j_or_nil}}, attrs ->
+          Mol.prepends(attrs, e, color: defcol)
       end)
 
     graph(g, outdir, attrs, fmt)

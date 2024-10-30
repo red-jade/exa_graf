@@ -198,7 +198,7 @@ defmodule Exa.Graf.Graf do
   def rename(g, gname) when is_graph(g) and is_gname(gname) do
     # remove punctuation, convert space to '_', truncate for file system
     new_name = Exa.String.sanitize!(gname, 200)
-    :erlang.setelement(1, g, new_name)
+    :erlang.setelement(2, g, new_name)
   end
 
   @doc "Convert a graph to a different format."
@@ -336,37 +336,48 @@ defmodule Exa.Graf.Graf do
   def isolated?(g, i), do: classify(g, i) in [:isolated, :self_isolated]
 
   @doc """
-  Invert a component map to give the index of vertices to their component id.
+  Invert a disjoint partition of a graph (e.g. component or frontier map).
+  The partition may be total or partial (some missing vertices).
+
+  The result is a pair of indexes for vertices and edges.
+  The vertex index maps vertices to partition id.
+  The edge index maps edges to their lifted partition edge.
+
+  The partition indexes always contain keys 
+  for all vertices and edges in the graph.
+
+  If the partition is total, then 
+  all the vertex and edge entries will have valid partition values.
+
+  If the partition is partial, then 
+  the vertex index will contain `nil` values,
+  and the edge index will contain values with 1 or 2 `nil` endpoints.
   """
-  @spec component_index(G.components()) :: G.component_index()
-  def component_index(comps) when is_mos(comps) do
-    # not just Mos.invert, because we don't want singleton set values
-    Enum.reduce(comps, %{}, fn {icomp, iset}, index ->
-      Enum.reduce(iset, index, fn i, index -> Map.put(index, i, icomp) end)
-    end)
-  end
+  @spec partition(G.graph(), G.partition()) :: G.partition_index()
+  def partition(g, parts) when is_graph(g) and is_mos(parts) do
+    vidx =
+      Enum.reduce(parts, %{}, fn {ipart, iset}, vidx ->
+        Enum.reduce(iset, vidx, fn i, vidx -> Map.put(vidx, i, ipart) end)
+      end)
 
-  @doc """
-  Lift edges to the equivalent component edge,
-  where the two endpoints are lifted to their component id.
+    vidx =
+      if nvert(g) == map_size(vidx) do
+        # total 
+        vidx
+      else
+        # partial - add missing vertices
+        Enum.reduce(verts(g), vidx, fn
+          i, vidx when is_map_key(vidx, i) -> vidx
+          i, vidx -> Map.put(vidx, i, nil)
+        end)
+      end
 
-  An edge within one component will be mapped to 
-  a self-loop on the component.
+    eidx =
+      Enum.reduce(edges(g), %{}, fn {i, j} = e, eidx ->
+        Map.put(eidx, e, {vidx[i], vidx[j]})
+      end)
 
-  If the components are _weak,_ 
-  there will be no edges spanning components,
-  so all component edges will be self-loops.
-
-  The component edges (without repeats) 
-  are the edges of the _condensation_ graph.
-  """
-  @spec component_edges(G.graph(), G.components()) :: %{G.edge() => G.comp_edge()}
-  def component_edges(g, comps) when is_graph(g) and is_mos(comps) do
-    index = component_index(comps)
-
-    Enum.reduce(edges(g), %{}, fn {i, j} = e, emap ->
-      Map.put(emap, e, {index[i], index[j]})
-    end)
+    {vidx, eidx}
   end
 
   @doc """

@@ -38,6 +38,11 @@ defmodule Exa.Graf.DotTypes do
   and provided as explicit types in this module. 
 
   Color values are defined by `dot_color()`.
+
+  Note that Keyword is a list, 
+  so the graph attributes are an MoL, 
+  and MoL functions can be used for updates
+  (e.g. adding attributes).
   """
   @type graph_attrs() :: %{gkey() => attr_kw()}
 
