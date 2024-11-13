@@ -1225,7 +1225,7 @@ defmodule Exa.Graf.Graf do
     dindex |> degree_histo3d(verts) |> hash_term()
   end
 
-  @spec do_hash1(indexes(), G.verts()) :: G.hash()
+  @spec do_hash1(indexes(), G.verts()) :: {hash_index(), G.hash()}
   defp do_hash1(idxs, verts) do
     hindex = hash_index(idxs, verts)
     ghash = hindex |> graph_histo(verts) |> hash_term()
