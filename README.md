@@ -92,7 +92,11 @@ Here is a graph with 3 weakly connected components:
 
 This graph has 3 strongly connected components:
 
-![weak components](./assets/wiki_scc.png)
+![strong components](./assets/wiki_scc.png)
+
+The same graph showing the Depth First Forest (DFF) of trees:
+
+![spannnig forest](./assets/wiki_forest.png)
 
 ## Graph Mutability
 
