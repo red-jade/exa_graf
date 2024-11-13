@@ -347,14 +347,15 @@ defmodule Exa.Graf.Graf do
   for all vertices and edges in the graph.
 
   If the partition is total, then 
-  all the vertex and edge entries will have valid partition values.
+  all the vertex and edge entries 
+  will have valid partition values.
 
   If the partition is partial, then 
   the vertex index will contain `nil` values,
   and the edge index will contain values with 1 or 2 `nil` endpoints.
   """
-  @spec partition(G.graph(), G.partition()) :: G.partition_index()
-  def partition(g, parts) when is_graph(g) and is_mos(parts) do
+  @spec partition_index(G.graph(), G.partition()) :: G.partition_index()
+  def partition_index(g, parts) when is_graph(g) and is_mos(parts) do
     vidx =
       Enum.reduce(parts, %{}, fn {ipart, iset}, vidx ->
         Enum.reduce(iset, vidx, fn i, vidx -> Map.put(vidx, i, ipart) end)
@@ -990,11 +991,12 @@ defmodule Exa.Graf.Graf do
   The initial test compares:
   - number of vertices
   - number of edges
-  - hashes of the graphs (0-hop and 1-hop)
+  - 0-hop hashes of the graphs 
+  - 1-hop hashes of the graphs 
 
   Most graphs that are not isomorphic will return promptly at this stage.
 
-  If all tests pass, then calculate isomorphism, fail or timeout.
+  If all tests pass, then calculate an isomorphism, fail or timeout.
   """
   @spec isomorphism(G.graph(), G.graph(), E.timeout1()) :: iso_result()
   def isomorphism(g1, g2, dt \\ @iso_timeout)
@@ -1306,32 +1308,75 @@ defmodule Exa.Graf.Graf do
   @doc """
   Write a graph to file in GraphViz DOT format.
 
-  The graph `gname` is used as the title of the DOT graph object,
-  as a key for global properties in the graph attribute map,
-  and as the basename for the output file.
+  The graph `gname` is used as the:
+  - title of the DOT graph object
+  - key for global properties in the graph attribute map
+  - basename for the output file
+
+  Optionally supply a partition to be used as 
+  spatial layers in the diagram.
+  Each partition is grouped as `same` rank layer.
+  Edges from lower to higher partitions are given `constraint=true` 
+  to enforce the sequence of layers.
+  Other edges default to `constraint=false`
+  and are independent of the layering.
 
   Return the DOT text as `IO.chardata` and the full output filename.
 
   Use `Exa.Dot.Render.render_dot/3` 
   to convert the DOT file to PNG or SVG.
   """
-  @spec to_dot_file(G.graph(), E.filename(), D.graph_attrs()) ::
+  @spec to_dot_file(G.graph(), E.filename(), D.graph_attrs(), nil | G.partition()) ::
           {E.filename(), IO.chardata()}
-  def to_dot_file(g, dotdir, gattrs \\ %{})
+
+  def to_dot_file(g, dotdir, gattrs \\ %{}, parts \\ nil)
       when is_graph(g) and is_filename(dotdir) do
     Exa.File.ensure_dir!(dotdir)
     gname = name(g)
     filename = Exa.File.join(dotdir, gname, [@filetype_dot])
+    {vidx, eidx} = if(is_nil(parts), do: {nil, nil}, else: partition_index(g, parts))
 
     dot =
       DOT.new_dot(gname)
       |> DOT.globals(gname, gattrs)
-      |> DOT.nodes(verts(g), gattrs)
-      |> DOT.edges(edges(g), gattrs)
+      |> dot_nodes(verts(g), gattrs, parts, vidx)
+      |> dot_edges(edges(g), gattrs, eidx)
       |> DOT.end_dot()
       |> DOT.to_file(filename)
 
     {filename, dot}
+  end
+
+  defp dot_nodes(dot, verts, gattrs, nil, nil), do: DOT.nodes(dot, verts, gattrs)
+
+  defp dot_nodes(dot, verts, gattrs, parts, vidx) do
+    # layers
+    dot =
+      parts
+      |> Enum.sort()
+      |> Enum.reduce(dot, fn {_pid, vset}, dot ->
+        dot
+        |> DOT.open_subgraph()
+        |> DOT.rank(:same)
+        |> DOT.nodes(vset, gattrs)
+        |> DOT.close_subgraph()
+      end)
+
+    # remaining nodes
+    orphans = Enum.filter(verts, fn i -> is_nil(vidx[i]) end)
+    DOT.nodes(dot, orphans, gattrs)
+  end
+
+  defp dot_edges(dot, edges, gattrs, nil), do: DOT.edges(dot, edges, gattrs)
+
+  defp dot_edges(dot, edges, gattrs, eidx) do
+    gattrs =
+      Enum.reduce(eidx, gattrs, fn {e, {pi, pj}}, gattrs ->
+        con = not is_nil(pi) and not is_nil(pj) and pj > pi
+        Mol.prepends(gattrs, e, constraint: con)
+      end)
+
+    DOT.edges(dot, edges, gattrs)
   end
 
   @doc """
@@ -1438,7 +1483,9 @@ defmodule Exa.Graf.Graf do
   # forest traversals
   # -----------------
 
-  @doc "Print out an indented view of the traversal of a Depth First Forest."
+  @doc """
+  Print out an indented view of the traversal of a Depth First Forest.
+  """
   @spec dump_forest(G.forest()) :: nil
   def dump_forest(dff) when is_forest(dff) do
     Traverse.forest(
@@ -1460,6 +1507,59 @@ defmodule Exa.Graf.Graf do
         end
       }
     )
+  end
+
+  @doc """
+  Convert a Depth First Forest to a _partition_ of the graph.
+
+  Each tree is collected into one partition.
+
+  A weak DFF partition will just be the weak connected components.
+
+  A strong DFF partition will not usually correspond 
+  to the strong connected components.
+  There will be DFF trees that span more than one strong component.
+
+  For example, consider a graph with a single weak component 
+  that is a pure (acyclic) tree...
+
+  The weak DFF partition will just be the tree component.
+
+  The strong components will be the set of individual vertices.
+  The strong DFF partition will also be the tree component iff:
+  - the tree is strongly directed from the root
+  - the DFF starts from the tree root
+
+  Otherwise the DFF partition will be a set of subtrees,
+  and vertex fragments, which combine to form the original tree.
+  """
+  @spec forest_partition(G.forest()) :: G.partition()
+  def forest_partition(dff) when is_forest(dff) do
+    node_cb = fn {root, part}, _g, i -> {root, Mos.add(part, root, i)} end
+    Traverse.forest(
+      dff,
+      %Visitor{
+        init_state: fn _ -> {nil, Mos.new()} end,
+        pre_tree: fn {_, part}, _g, i -> {i, part} end,
+        pre_node: node_cb,
+        visit_node: node_cb,
+        final_result: fn {_root, part} -> part end
+      }
+    )
+  end
+
+  @doc """
+  Convert a forest to a graph containing just the trees.
+
+  Optionally provide a name for the new graph (default `"forest"`).
+  """
+    @spec forest_graph(G.forest()) :: G.graph()
+  def forest_graph(dff, name \\ "forest") when is_forest(dff) do
+    {roots, dff} = Map.pop(dff, :forest)
+    g = build(:adj, name, roots)
+    Enum.reduce(dff, g, fn {i, js}, g ->
+      Enum.reduce(js, g, fn j, g -> add(g, {i,j}) end)
+    end)
   end
 
   @doc "Get a pre-order traversal sequence of vertices."

@@ -56,13 +56,16 @@ defmodule Exa.Graf.Draw do
   @doc """
   Draw a graph.
 
+  Optionally provide a partition for graph layers (stratified node groups).
+
   Convert a graph to a DOT file and render to an image.
   """
-  @spec graph(G.graph(), E.filename(), D.graph_attrs(), D.format()) ::
+  @spec graph(G.graph(), E.filename(), D.graph_attrs(), D.format(), nil | G.partition()) ::
           E.filename() | {:error, any()}
-  def graph(g, outdir, attrs \\ %{}, fmt \\ :png)
-      when is_graph(g) and is_map(attrs) and is_atom(fmt) do
-    case Graf.to_dot_file(g, outdir, attrs) do
+  def graph(g, outdir, attrs \\ %{}, fmt \\ :png, parts \\ nil)
+      when is_graph(g) and
+             is_map(attrs) and (is_nil(parts) or is_map(parts)) and is_atom(fmt) do
+    case Graf.to_dot_file(g, outdir, attrs, parts) do
       {:error, _} = err -> err
       {dot, _text} -> DotRender.render_dot(dot, fmt, outdir)
     end
@@ -99,12 +102,15 @@ defmodule Exa.Graf.Draw do
   or non-color properties for specific nodes or edges.
   For example, frontier partition may want to highlight 
   the shape or fill of the source vertex.
+
+  Optionally flag to use the partition as graph layers (stratified node groups).
   """
   @spec partitions(
           G.graph(),
           G.partition(),
           E.filename(),
           D.graph_attrs(),
+          bool(),
           [D.dot_color()],
           D.dot_color(),
           D.format()
@@ -114,43 +120,40 @@ defmodule Exa.Graf.Draw do
         parts,
         outdir,
         def_attrs \\ %{},
+        layers? \\ false,
         cols \\ @defcols,
         defcol \\ @defdef,
         fmt \\ @deffmt
       )
-      when is_graph(g) and is_map(parts) and is_list(cols) and is_atom(fmt) and
-             map_size(parts) <= length(cols) do
+      when is_graph(g) and is_map(parts) and is_list(cols) and is_atom(fmt) do
     # invert the partition
-    {vidx, eidx} = Graf.partition(g, parts)
+    {vidx, eidx} = Graf.partition_index(g, parts)
 
     # build colormap for partitions
-    cmap = parts |> Map.keys() |> Exa.List.zip_cyclic(cols) |> Map.new()
+    cmap = parts |> Map.keys() |> Exa.List.zip_cyclic(cols) |> Map.new() |> Map.put(nil, defcol)
 
     # note that DOT semantics seems to be that for repeated properties
     # the last attribute value dominates over previous values
     # so prepends does not overwrite existing default attributes
 
     # color vertices in each partition
+    # default color outside of partitions
     attrs =
-      Enum.reduce(vidx, def_attrs, fn
-        {i, nil}, attrs ->
-          Mol.prepends(attrs, i, color: defcol, fontcolor: defcol)
-
-        {i, ipart}, attrs ->
-          col = cmap[ipart]
-          Mol.prepends(attrs, i, color: col, fontcolor: col)
+      Enum.reduce(vidx, def_attrs, fn {i, pi}, attrs ->
+        col = if is_nil(pi), do: defcol, else: cmap[pi]
+        Mol.prepends(attrs, i, color: col, fontcolor: col)
       end)
 
-    # color edges in each partition
+    # color internal edges based on partition
+    # default color between partitions
     attrs =
-      Enum.reduce(eidx, attrs, fn
-        {e, {ipart, _j_or_nil}}, attrs when not is_nil(ipart) ->
-          Mol.prepends(attrs, e, color: cmap[ipart])
-
-        {e, {nil, _j_or_nil}}, attrs ->
-          Mol.prepends(attrs, e, color: defcol)
+      Enum.reduce(eidx, attrs, fn 
+        {e, {pi, pi}}, attrs -> Mol.prepends(attrs, e, color: cmap[pi])
+        {e, _ep}, attrs -> Mol.prepends(attrs, e, color: defcol)
       end)
 
-    graph(g, outdir, attrs, fmt)
+    # TODO - could pass through indexes as optimization
+    layer_parts = if layers?, do: parts, else: nil
+    graph(g, outdir, attrs, fmt, layer_parts)
   end
 end

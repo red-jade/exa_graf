@@ -69,6 +69,9 @@ defmodule Exa.Graf.DotWriter do
   @doc """
   Pass through reduce for piping DOT info into output text.
   Just swaps argument order for Enumerable and Indent.
+
+  Note the function has conventional argument order,
+  with enumerated element _then_ indent accumulator.
   """
   @spec reduce(I.indent(), Enumerable.t(), (any(), I.indent() -> I.indent())) :: I.indent()
   def reduce(io, xs, fun), do: Enum.reduce(xs, io, fun)
@@ -79,6 +82,10 @@ defmodule Exa.Graf.DotWriter do
   @spec open_graph(I.indent(), String.t()) :: I.indent()
   def open_graph(io, name), do: io |> txtl(["digraph ", name, " {"]) |> push()
 
+  @doc "Close a graph."
+  @spec close_graph(I.indent()) :: I.indent()
+  def close_graph(io), do: io |> pop() |> chr(?}) |> endl()
+
   @doc "Open a named subgraph."
   @spec open_subgraph(I.indent()) :: I.indent()
   def open_subgraph(io, name), do: io |> txtl(["subgraph ", name, " {"]) |> push()
@@ -87,15 +94,19 @@ defmodule Exa.Graf.DotWriter do
   @spec open_subgraph(I.indent()) :: I.indent()
   def open_subgraph(io), do: io |> chr(?{) |> endl() |> push()
 
-  @doc "Close a graph or subgraph."
-  @spec close_graph(I.indent()) :: I.indent()
-  def close_graph(io), do: io |> pop() |> chr(?}) |> endl()
+  @doc "Close a subgraph."
+  @spec close_subgraph(I.indent()) :: I.indent()
+  def close_subgraph(io), do: io |> pop() |> chr(?}) |> endl()
 
   # attributes ----------
 
   @doc "Set the rankdir graph attribute."
   @spec rankdir(I.indent(), D.rankdir()) :: I.indent()
   def rankdir(io, rankdir), do: attribute(io, :rankdir, rankdir)
+
+  @doc "Set the rank graph attribute."
+  @spec rank(I.indent(), D.rank()) :: I.indent()
+  def rank(io, rank), do: attribute(io, :rank, rank)
 
   @doc "Set the size graph attribute: width and height in inches."
   @spec size(I.indent(), number(), number()) :: I.indent()
@@ -175,15 +186,20 @@ defmodule Exa.Graf.DotWriter do
   end
 
   @doc """
+  Write a list of nodes with attributes.
+  Each node is written on a separate line.
+  """
+  @spec nodes(I.indent(), Enumerable.t(id()), D.graph_attrs()) :: I.indent()
+  def nodes(io, ids, gattrs \\ %{}) do
+    Enum.reduce(ids, io, &node(&2, &1, gattrs))
+  end
+
+  @doc """
   Write a compact list of nodes, without attributes, on one line.
   The optional graph attributes are only for aliases.
   """
-  @spec nodes(I.indent(), [id()], D.graph_attrs()) :: I.indent()
-  def nodes(io, ids, gattrs \\ %{})
-
-  def nodes(io, [], _), do: io
-
-  def nodes(io, ids, gattrs) when is_list(ids) do
+  @spec nodes1(I.indent(), Enumerable.t(id()), D.graph_attrs()) :: I.indent()
+  def nodes1(io, ids, gattrs \\ %{}) when is_enum(ids) do
     io
     |> newl()
     |> reduce(ids, fn id, io ->
@@ -202,36 +218,41 @@ defmodule Exa.Graf.DotWriter do
   - global to provide both node aliases
   - just keywords for edge attributes, without aliases
   """
-  @spec edge(I.indent(), id(), id(), attrs()) :: I.indent()
-  def edge(io, id, jd, attrs \\ []) when is_id(id) and is_id(jd) do
+  @spec edge(I.indent(), {id(), id()}, attrs()) :: I.indent()
+  def edge(io, {id, jd} = e, attrs \\ []) when is_id(id) and is_id(jd) do
     {i, _} = id_attrs!(id, attrs)
     {j, _} = id_attrs!(jd, attrs)
     # edge attributes do not have aliases
     eattrs =
       cond do
         is_keyword(attrs) -> attrs
-        is_map(attrs) -> Map.get(attrs, {id, jd}, [])
+        is_map(attrs) -> Map.get(attrs, e, [])
       end
 
     io |> newl() |> txt([i, " -> ", j]) |> attrs(eattrs) |> chr(?;) |> endl
   end
 
   @doc """
+  Write a list of edges with attributes.
+  Each edge is written on a separate line.
+  """
+  @spec edges(I.indent(), Enumerable.t({id(), id()}), D.graph_attrs()) :: I.indent()
+  def edges(io, edges, gattrs \\ %{}) do
+    Enum.reduce(edges, io, fn e, io -> edge(io, e, gattrs) end)
+  end
+
+  @doc """
   Write a compact list of edge pairs, without attributes, all on one line.
   The graph attributes are just to find the node aliases.
   """
-  @spec edges(I.indent(), [{id(), id()}], D.graph_attrs()) :: I.indent()
-  def edges(io, edges, gattrs \\ %{})
-
-  def edges(io, [], _), do: io
-
-  def edges(io, edges, gattrs) when is_list_nonempty(edges) and is_tuple(hd(edges)) do
+  @spec edges1(I.indent(), Enumerable.t({id(), id()}), D.graph_attrs()) :: I.indent()
+  def edges1(io, edges, gattrs \\ %{}) when is_enum(edges) do
     io
     |> newl()
-    |> reduce(edges, fn {id, jd}, io ->
+    |> reduce(edges, fn {id, jd} = e, io ->
       {i, _} = id_attrs!(id, gattrs)
       {j, _} = id_attrs!(jd, gattrs)
-      eattrs = Map.get(gattrs, {id, jd}, [])
+      eattrs = Map.get(gattrs, e, [])
       io |> txt([i, " -> ", j]) |> attrs(eattrs) |> txt("; ")
     end)
     |> endl()

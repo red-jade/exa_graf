@@ -47,10 +47,18 @@ defmodule Exa.Graf.TraverseTest do
              strong_dff
 
     # Graf.dump_forest(strong_dff)
+
     pre = Graf.preorder(strong_dff)
     assert [1, 2, 3, 7, 8, 4, 5, 6] == pre
+
     post = Graf.postorder(strong_dff)
     assert [8, 7, 3, 2, 1, 6, 5, 4] == post
+
+    trees = Graf.forest_graph(strong_dff)
+    assert [{1, 2}, {2, 3}, {3, 7}, {4, 5}, {5, 6}, {7, 8}] = Enum.sort(Graf.edges(trees))
+
+    part = Graf.forest_partition(strong_dff)
+    assert %{1 => MapSet.new([1, 2, 3, 7, 8]), 4 => MapSet.new([4, 5, 6])} == part
   end
 
   test "cyclic" do

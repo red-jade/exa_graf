@@ -16,10 +16,14 @@ defmodule Exa.Graf.DotWriterTest do
   edge [style=solid];
   rankdir=TB;
   1 [label="one", color="red"];
-  2; 3; 4; 
+  2;
+  3;
+  4;
   1 -> 2 [label="edge", color="0.1,0.4,0.8"];
   2 -> 3 [color="#FF0000"];
-  1 -> 4; 4 -> 3; 4 -> 1; 
+  1 -> 4;
+  4 -> 3;
+  4 -> 1;
   1 -> 4 -> 3 -> 1;
 }
 |
@@ -37,8 +41,8 @@ defmodule Exa.Graf.DotWriterTest do
       |> rankdir(:TB)
       |> node(1, label: "one", color: "red")
       |> nodes([2, 3, 4])
-      |> edge(1, 2, label: "edge", color: col3f)
-      |> edge(2, 3, color: col3b)
+      |> edge({1, 2}, label: "edge", color: col3f)
+      |> edge({2, 3}, color: col3b)
       |> edges([{1, 4}, {4, 3}, {4, 1}])
       |> chain([1, 4, 3, 1])
       |> end_dot()
@@ -66,8 +70,8 @@ defmodule Exa.Graf.DotWriterTest do
       |> globals(name, gattrs)
       |> node(1, gattrs)
       |> nodes([2, 3, 4])
-      |> edge(1, 2, gattrs)
-      |> edge(2, 3, gattrs)
+      |> edge({1, 2}, gattrs)
+      |> edge({2, 3}, gattrs)
       |> edges([{1, 4}, {4, 3}, {4, 1}])
       |> chain([1, 4, 3, 1])
       |> end_dot()
