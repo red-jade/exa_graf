@@ -8,6 +8,30 @@ Data structure, algorithms and file I/O for directed graphs.
 
 Module path: `Exa.Graf`
 
+## Graph Model
+
+The current version is restricted to simple directed graphs:
+- nodes are labelled by positive integers
+- edges are unlabelled and unweighted
+- edges are always directed
+- cycles are allowed
+- no multi-edges: 
+  at most one edge in a given direction between a pair of nodes
+- self-loops are allowed: 
+  edge from a node to itself
+- unconnected graphs are allowed: 
+  the graph may have more than one component
+
+Any properties for graph elements are maintained
+as separate `Map` indexes for other attributes
+(e.g. colors and styles for drawing the graph).
+These are not (yet) maintained within the graph data structure.
+
+Undirected graphs can be represented or analyzed in two ways:
+- provide edges in both directions between connected nodes,
+  then use _strongly connected_ flag for algorithms
+- use _weakly connected_ flag for algorithms
+
 ## Features
 
 The _adj_ functional data structure for directed graphs,
@@ -26,10 +50,7 @@ Conversion between different representations.
 A generic and flexible way to build graphs from
 vertices, vertex ranges, edges, chains and adjacency lists.
 
-Graf data allows self-loops and cyclic graphs, but no multi-edges 
-(multiple edges between the same pair of vertices).
-
-Simple queries on the graph, such as 
+Simple access for graph elements, such as 
 lists of elements, presence of specific vert/edge
 and vertex classification.
 
@@ -73,6 +94,11 @@ or _disjoint_ independent addition.
 
 Serialization of _adj_ data to/from files 
 using Elixir term format.
+
+## Repository
+
+An in-memory store of graphs keyed by structural hashes,
+which supports queries for isomorphism and homomorphism.
 
 ## Drawing
 
@@ -154,4 +180,4 @@ One way to start a build is:
 EXA source code is released under the MIT license.
 
 EXA code and documentation are:<br>
-Copyright (c) 2024 Mike French
+Copyright (c) 2025 Mike French

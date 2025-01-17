@@ -409,11 +409,11 @@ defmodule Exa.Graf.Graf do
   the whole graph along outgoing directed edges.
 
   The root must have zero in-degree, ignoring any self-loop.
-  A vertex with a self-loop can be a directed root,
+  A vertex with a self-loop can be a directed root.
 
   For a unique root to exist, the graph must be a 
   single weakly-connected component,
-  but not a single strongly-connected component.
+  and the required connectivity must be strong.
 
   In a single weakly-connected component, 
   any vertex can be chosen as a weakly reachable root.
@@ -421,13 +421,11 @@ defmodule Exa.Graf.Graf do
   In a single strongly-connected component,
   there are no pure sources, 
   as every vertex has both incoming and outgoing edges,
-  and any vertex can be chosen as a strongly reachable root.
+  and any vertex can reach all others.
 
-  For a unique root to exist, the graph may be:
-  - directed rooted tree
-  - Directed Acyclic Graph (DAG)
-  - cyclic graph with more than one 
-    strongly connected component.
+  For a unique root to exist for strong connectivity, 
+  the graph must be a Directed Acyclic Graph (DAG),
+  which includes directed rooted tree as a special case.
   """
   @spec root(G.graph()) :: nil | G.vert()
   def root(g), do: if(connected?(g, :weak), do: do_root(g), else: nil)
@@ -971,6 +969,25 @@ defmodule Exa.Graf.Graf do
         {:isomorphic, _} -> :homeomorphic
       end
     end
+  end
+
+  @doc """
+  Calculate a composite hash for a graph.
+  The result contains:
+  - number of vertices
+  - number of edges
+  - 0-hop hash
+  - 1-hop hash
+  """
+  @spec gkey(G.graph()) :: G.gkey()
+  def gkey(g) when is_graph(g) do
+    nvert = nvert(g)
+    nedge = nedge(g)
+    verts = verts(g)
+    idxs = indexes(g, verts)
+    hash0 = do_hash0(idxs, verts)
+    {_hindex, hash1} = do_hash1(idxs, verts)
+    {nvert, nedge, hash0, hash1}
   end
 
   @doc """
@@ -1536,6 +1553,7 @@ defmodule Exa.Graf.Graf do
   @spec forest_partition(G.forest()) :: G.partition()
   def forest_partition(dff) when is_forest(dff) do
     node_cb = fn {root, part}, _g, i -> {root, Mos.add(part, root, i)} end
+
     Traverse.forest(
       dff,
       %Visitor{
@@ -1553,12 +1571,13 @@ defmodule Exa.Graf.Graf do
 
   Optionally provide a name for the new graph (default `"forest"`).
   """
-    @spec forest_graph(G.forest()) :: G.graph()
+  @spec forest_graph(G.forest()) :: G.graph()
   def forest_graph(dff, name \\ "forest") when is_forest(dff) do
     {roots, dff} = Map.pop(dff, :forest)
     g = build(:adj, name, roots)
+
     Enum.reduce(dff, g, fn {i, js}, g ->
-      Enum.reduce(js, g, fn j, g -> add(g, {i,j}) end)
+      Enum.reduce(js, g, fn j, g -> add(g, {i, j}) end)
     end)
   end
 

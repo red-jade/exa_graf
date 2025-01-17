@@ -463,4 +463,14 @@ defmodule Exa.Graf.Types do
   The hash will be a SHA256 binary converted to an unsigned integer.
   """
   @type hash() :: non_neg_integer()
+
+  @typedoc """
+  Graph key for use as Graph DB index.
+  """
+  @type gkey() :: {
+          nvert :: E.count(),
+          nedge :: E.count(),
+          hop0 :: hash(),
+          hop1 :: hash()
+        }
 end
