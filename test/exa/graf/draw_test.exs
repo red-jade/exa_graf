@@ -70,9 +70,11 @@ defmodule Exa.Graf.DrawTest do
     all_edges = g |> Graf.edges() |> MapSet.new()
     tre_edges = trees |> Graf.edges() |> MapSet.new()
     cobwebs = MapSet.difference(all_edges, tre_edges)
-    eattrs = Enum.reduce(cobwebs, Mol.new(), fn e, attrs -> 
-      Mol.prepends(attrs, e, color: "gray80") 
-    end)
+
+    eattrs =
+      Enum.reduce(cobwebs, Mol.new(), fn e, attrs ->
+        Mol.prepends(attrs, e, color: "gray80")
+      end)
 
     part = Graf.forest_partition(dff)
     Draw.partitions(g |> Graf.rename("wiki_forest"), part, @out_dir, eattrs)

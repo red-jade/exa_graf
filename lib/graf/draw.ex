@@ -147,7 +147,7 @@ defmodule Exa.Graf.Draw do
     # color internal edges based on partition
     # default color between partitions
     attrs =
-      Enum.reduce(eidx, attrs, fn 
+      Enum.reduce(eidx, attrs, fn
         {e, {pi, pi}}, attrs -> Mol.prepends(attrs, e, color: cmap[pi])
         {e, _ep}, attrs -> Mol.prepends(attrs, e, color: defcol)
       end)
