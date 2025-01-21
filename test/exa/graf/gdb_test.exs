@@ -3,10 +3,10 @@ defmodule Exa.Graf.GdbTest do
 
   use Exa.Graf.Constants
 
-  # alias Exa.Std.Mol
+  alias Exa.Std.Mol
 
   alias Exa.Graf.Graf
-  # alias Exa.Graf.GrafBuild
+  alias Exa.Graf.GrafBuild
   alias Exa.Graf.Gdb
 
   @out_dir Path.join(["test", "output", "graf", "dot"])
@@ -27,7 +27,6 @@ defmodule Exa.Graf.GdbTest do
 
     # build gdb
     gdb = Gdb.new() |> Gdb.add(gin) |> Gdb.add(gout)
-    IO.inspect(gdb)
 
     # null test - empty MoL
     qwheel = Gdb.query_isomorphic(gdb, gwheel)
@@ -35,13 +34,33 @@ defmodule Exa.Graf.GdbTest do
 
     # equality test
     qeq = Gdb.query_isomorphic(gdb, gin)
-    IO.inspect(qeq)
     assert %{:isomorphic => [gin]} == qeq
 
     # permutation isomorphism test
     qin = Gdb.query_isomorphic(gdb, inperm)
-    IO.inspect(qin)
     assert %{:isomorphic => [gin]} == qeq
+    # Draw.graph(g, @out_dir)
+  end
+
+  test "all graphs" do
+    # OEIS A000088
+    # n:   2 3  4  5   6    7     8      9
+    # gdb: 2 4 11 34 156 1044 12346 274668
+
+    do_gdb(3, false, 4)
+    do_gdb(4, false, 11)
+
+    # OEIS A001349
+    # n:   2 3 4  5   5   7     8      9
+    # gdb: 1 2 6 21 112 853 11117 261080
+
+    do_gdb(3, true, 2)
+    do_gdb(4, true, 6)
+  end
+
+  defp do_gdb(n,connected?, ng) do
+    gdb = GrafBuild.all_graphs(n, connected?)
+    assert ng == Mol.lengths(gdb)
     # Draw.graph(g, @out_dir)
   end
 end

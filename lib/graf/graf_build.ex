@@ -2,6 +2,8 @@ defmodule Exa.Graf.GrafBuild do
   @moduledoc """
   Utilities for building directed graphs.
   """
+  import Bitwise
+
   import Exa.Types
   alias Exa.Types, as: E
 
@@ -9,6 +11,8 @@ defmodule Exa.Graf.GrafBuild do
 
   alias Exa.Graf.Types, as: G
   alias Exa.Graf.Graf
+
+  alias Exa.Graf.Gdb
 
   # ------------
   # constructors
@@ -110,9 +114,67 @@ defmodule Exa.Graf.GrafBuild do
   end
 
   @doc """
-  Random graph.
+  Create all simple undirected graphs on n nodes (no self-loops).
+  Undirected graphs are represented by duplicating each edge
+  in both directions. 
 
-  No self-loops.
+  The `connected?` flag controls if only connected graphs are included.
+  Any connected graph will be both strongly and weakly connected
+  (equivalent when edges are duplicated).
+
+  The number of graphs generated is:
+  - unconnected, see [OEIS A000088](https://oeis.org/A000088)
+  - connected, see [OEIS A001349](https://oeis.org/A001349)
+
+  There is a hard limit on the number of nodes at 9,
+  when the number of graphs generated will be:
+  - unconnected 274,668 graphs
+  - connected 261,080 graphs
+
+  Graphs are generated in ADJ format.
+  """
+  @spec all_graphs(E.count1(), bool()) :: [G.graph()]
+  def all_graphs(n, connected? \\ true) when is_count1(n) do
+    if n > 9 do
+      raise ArgumentError,
+        message: "Too many graphs for #{n} nodes connected? #{connected?}"
+    end
+
+    gdb = Gdb.new()
+
+    # the number of bits in the edge mask
+    # is area of off-diagonal upper triangle in adjacency matrix
+    # no diagonal, because no self-loops
+    # upper triangle because undirected means lower triangle is symmetric
+    # integer mask values are in the range:  0 .. 2^[n(n-1)/2]-1
+    nbit = div(n * (n - 1), 2)
+    maxmask = (1 <<< nbit) - 1
+
+    Enum.reduce(0..maxmask, gdb, fn mask, gdb ->
+      g = Graf.build(:adj, "all_#{n}_#{mask}", [1..n])
+
+      {^nbit, g} =
+        Enum.reduce(1..n, {0, g}, fn i, {k, g} ->
+          Enum.reduce((i+1)..n//1, {k, g}, fn j, {k, g} ->
+            g = if kbit?(mask,k), do: Graf.add(g, [{i,j},{j,i}]), else: g
+            {k+1, g}
+          end)
+        end)
+
+      if not connected? or Graf.connected?(g, :weak) do
+        Gdb.add_unique(gdb, g)
+      else
+        gdb
+      end
+    end)
+  end
+
+  # test if the kth bit from the right is set
+  @spec kbit?(non_neg_integer(), E.count()) :: bool()
+  defp kbit?(mask,k), do: ((mask >>> k) &&& 0x01) == 0x01
+
+  @doc """
+  Random graph without self-loops.
 
   The number of edges, m, must be greater 
   than the number of vertices, n, for the graph to be connected: `m > n`
