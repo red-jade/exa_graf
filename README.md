@@ -98,7 +98,7 @@ using Elixir term format.
 ## Repository
 
 An in-memory store of graphs keyed by structural hashes,
-which supports queries for isomorphism and homomorphism.
+which supports queries for isomorphism and homeomorphism.
 
 ## Drawing
 

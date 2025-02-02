@@ -155,14 +155,14 @@ defmodule Exa.Graf.GrafBuild do
 
       {^nbit, g} =
         Enum.reduce(1..n, {0, g}, fn i, {k, g} ->
-          Enum.reduce((i+1)..n//1, {k, g}, fn j, {k, g} ->
-            g = if kbit?(mask,k), do: Graf.add(g, [{i,j},{j,i}]), else: g
-            {k+1, g}
+          Enum.reduce((i + 1)..n//1, {k, g}, fn j, {k, g} ->
+            g = if kbit?(mask, k), do: Graf.add(g, [{i, j}, {j, i}]), else: g
+            {k + 1, g}
           end)
         end)
 
       if not connected? or Graf.connected?(g, :weak) do
-        Gdb.add_unique(gdb, g)
+        Gdb.add(gdb, g)
       else
         gdb
       end
@@ -171,7 +171,7 @@ defmodule Exa.Graf.GrafBuild do
 
   # test if the kth bit from the right is set
   @spec kbit?(non_neg_integer(), E.count()) :: bool()
-  defp kbit?(mask,k), do: ((mask >>> k) &&& 0x01) == 0x01
+  defp kbit?(mask, k), do: (mask >>> k &&& 0x01) == 0x01
 
   @doc """
   Random graph without self-loops.

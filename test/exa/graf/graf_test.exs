@@ -161,6 +161,8 @@ defmodule Exa.Graf.GrafTest do
     )
   end
 
+  # contraction ----------
+
   test "collapse edge" do
     for tag <- [:adj, :dig] do
       g = new(tag, "collapse") |> add([{1, 2}, {2, 2}, {3, 2}, {2, 4}])
@@ -169,6 +171,12 @@ defmodule Exa.Graf.GrafTest do
       assert [{1, 1}, {1, 4}, {3, 1}] == g |> edges() |> Enum.sort()
     end
   end
+
+  # TODO - contract_node
+
+  # TODO - contract_linear
+
+  # TODO - contract_linears
 
   # classification ----------
 

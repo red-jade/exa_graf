@@ -755,12 +755,22 @@ defmodule Exa.Graf.Graf do
   defp minil(i, k), do: min(i, k)
 
   @doc """
-  Contract a linear node.
+  Contract a linear or bilinear node.
+
+  Contracting linear nodes does not change the 
+  topological structure of the graph.
+
+  The topologies of two graphs can be compared 
+  by contracting all linear nodes and testing for isomorphism.
+  If the two contractions are isomorphic, 
+  then the original graphs are _homeomorphic_ (topologically equivalent).
+
+  ### Linear Nodes
 
   A linear node has exactly one incoming edge, 
   one outgoing edge and no self-loop.
 
-  The node is removed, and the two edges are replaced by a
+  The node is removed and the two edges are replaced by a
   single edge from the incoming neighbor to the outgoing neighbor.
 
   There are two additional constraints on the new edge:
@@ -773,13 +783,25 @@ defmodule Exa.Graf.Graf do
   So, if the input graph is simple (no self-loops)
   then the output graph is also simple.
 
-  Contracting linear nodes does not change the 
-  topological structure of the graph.
+  ### Bilinear Nodes
 
-  The topologies of two graphs can be compared 
-  by contracting all linear nodes and testing for isomorphism.
-  If the two contractions are isomorphic, 
-  then the original graphs are _homeomorphic_ (topologically equivalent).
+  A similar process is applied to bilinear nodes.
+
+  A bilinear node has exactly two incoming edges,
+  two outgoing edges and no self-loop.
+
+  The incoming and outgoing neighbors must be the same pair of nodes,
+  which means the target node has bidirectional links to two distinct neighbors.
+
+  Note the two nodes must be distinct, 
+  because there cannot be two existing self-loops.
+
+  The node is removed and the four edges are replaced by 
+  a bidirectional pair of edges directly between the two neighbors,
+  only if neither already exists.
+
+  Contracting bilinear nodes means that undirected graphs modelled 
+  with bidirectional edges can also be contracted in the expected way.
   """
   @spec contract_linear(G.graph(), G.vert()) :: G.graph() | {:error, any()}
   def contract_linear(g, i) when is_graph(g) and is_vert(i) do
@@ -791,17 +813,30 @@ defmodule Exa.Graf.Graf do
         {:error, "Self loop"}
 
       {ins, nil, outs} ->
-        if MapSet.size(ins) != 1 or MapSet.size(outs) != 1 do
-          {:error, "Not linear"}
-        else
-          [j] = MapSet.to_list(ins)
-          [k] = MapSet.to_list(outs)
+        case {set_size(ins), set_size(outs)} do
+          {1, 1} ->
+            [j] = MapSet.to_list(ins)
+            [k] = MapSet.to_list(outs)
 
-          cond do
-            j == k -> {:error, "Creates self-loop"}
-            edge?(g, {j, k}) -> {:error, "Edge exists"}
-            true -> g |> delete(i) |> add({j, k})
-          end
+            cond do
+              j == k -> {:error, "Creates self-loop"}
+              edge?(g, {j, k}) -> {:error, "Edge exists"}
+              true -> g |> delete(i) |> add({j, k})
+            end
+
+          {2, 2} ->
+            [j, k] = inlist = ins |> MapSet.to_list() |> Enum.sort()
+            outlist = outs |> MapSet.to_list() |> Enum.sort()
+
+            cond do
+              inlist != outlist -> {:error, "Not linear"}
+              edge?(g, {j, k}) -> {:error, "Edge exists"}
+              edge?(g, {k, j}) -> {:error, "Edge exists"}
+              true -> g |> delete(i) |> add([{j, k}, {k, j}])
+            end
+
+          _ ->
+            {:error, "Not linear"}
         end
     end
   end
@@ -810,17 +845,25 @@ defmodule Exa.Graf.Graf do
   Contract all linear nodes.
 
   Contracting linear nodes preserves topological structure,
-  so it is a _homeomorphism_ (topological isomorphism).
+  so it is a _homeomorphism_ (topological equivalence).
 
   See `contract_linear/2`.
   """
   @spec contract_linears(G.graph()) :: G.graph()
   def contract_linears(g) when is_graph(g) do
-    Enum.reduce(verts(g), g, fn i, g ->
+    name = name(g)
+
+    g
+    |> verts()
+    |> Enum.reduce({g, false}, fn i, {g, changed?} ->
       case contract_linear(g, i) do
-        {:error, _} -> g
-        new_g -> new_g
+        {:error, _} -> {g, changed?}
+        new_g -> {new_g, true}
       end
+    end)
+    |> then(fn
+      {g, false} -> g
+      {new_g, true} -> rename(new_g, "#{name}_con")
     end)
   end
 
