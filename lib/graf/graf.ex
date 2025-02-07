@@ -602,6 +602,43 @@ defmodule Exa.Graf.Graf do
   end
 
   @doc """
+  Relabel a graph by applying a 
+  simple permutation to the node labels.
+
+  The permutation is a 1-step rotation of the existing labels,
+  where each node is relabelled with the next highest label,
+  except the highest label is replaced by the lowest.
+
+  If the existing labels form a simple integer range `1..n`
+  then the permutation function for label _i_ will be: 
+
+  `i -> 1 + rem(i, nvert)`
+
+  If the graph is empty, the same empty graph is returned.
+
+  Applying the rotation `nvert` times will give the original graph.
+  """
+  @spec rotate(G.graph()) :: G.graph()
+  def rotate(g) when is_graph(g) do
+    case nvert(g) do
+      0 ->
+        g
+
+      n ->
+        verts = g |> verts() |> Enum.sort()
+
+        case {hd(verts), List.last(verts)} do
+          {1, ^n} -> relabel(g, fn i -> 1 + rem(i, n) end)
+          {lo, hi} -> relabel(g, rot1(verts, %{hi => lo}))
+        end
+    end
+  end
+
+  @spec rot1(G.verts(), G.vmap()) :: G.vmap()
+  defp rot1([_hi], vmap), do: vmap
+  defp rot1([x | [y | _] = t], vmap), do: rot1(t, %{vmap | x => y})
+
+  @doc """
   Append the second graph to the first graph.
 
   There are two ways to update the graph:

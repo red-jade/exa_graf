@@ -21,7 +21,7 @@ defmodule Exa.Graf.GdbTest do
     gwheel = Graf.from_adj_file(in_file("wheel_10"))
 
     # permute vertices on the fan-in graph
-    inperm = Graf.relabel(gin, fn i -> rem(i, 9) + 1 end)
+    inperm = Graf.rotate(gin)
 
     # build gdb
     gdb = Gdb.new() |> Gdb.add(gin) |> Gdb.add(gout)
@@ -72,20 +72,13 @@ defmodule Exa.Graf.GdbTest do
     g32 = @g32
     g41 = @g41
 
-    g32perm =
-      g32
-      |> Graf.relabel(fn i -> rem(i, 5) + 1 end)
-      |> Graf.rename("5_3_2_perm")
+    g32perm = g32 |> Graf.rotate() |> Graf.rename("5_3_2_perm")
 
     # make a GDB from:
     # - isomorphic pair g32 and g32 permuted
     # - homeomorphic g41
     {:gdb, isos, homeos, contras} =
-      gdb =
-      Gdb.new()
-      |> Gdb.add(g32)
-      |> Gdb.add(g32perm)
-      |> Gdb.add(g41)
+      gdb = Gdb.new() |> Gdb.add(g32) |> Gdb.add(g32perm) |> Gdb.add(g41)
 
     k32 = Graf.gkey(g32)
     k41 = Graf.gkey(g41)
@@ -96,27 +89,26 @@ defmodule Exa.Graf.GdbTest do
 
     kcon = Graf.gkey(g32con)
 
-    assert %{
-             ^k41 => [^g41],
-             ^k32 => [^g32, ^g32perm]
-           } = isos
+    assert map_size(isos) == 2
+    assert %{g41 => MapSet.new([g41])} == isos[k41]
+    assert %{g32 => MapSet.new([g32perm, g32])} == isos[k32]
 
-    assert %{^kcon => [^g32con, ^g32permcon, ^g41con]} = homeos
+    assert map_size(homeos) == 1
+    assert %{g32con => MapSet.new([g32con, g32permcon, g41con])} == homeos[kcon]
 
     assert %{
-             ^g32con => [^g32],
-             ^g32permcon => [^g32perm],
-             ^g41con => [^g41]
-           } = contras
+             g32con => MapSet.new([g32]),
+             g32permcon => MapSet.new([g32perm]),
+             g41con => MapSet.new([g41])
+           } == contras
 
     # expect g32 and g32 permuted
     g32isos = Gdb.query_isomorphic(gdb, @g32)
-    assert %{:isomorphic => [^g32, ^g32perm]} = g32isos
+    assert MapSet.new([g32, g32perm]) == g32isos
 
     # expect all 3 graphs g32, g32 permuted and g41
     g32homeos = Gdb.query_homeomorphic(gdb, @g32)
-    assert %{:homeomorphic => [^g32, ^g32perm, ^g41]} = g32homeos
-
+    assert MapSet.new([g32, g32perm, g41]) == g32homeos
   end
 
   test "all graphs" do
@@ -146,20 +138,29 @@ defmodule Exa.Graf.GdbTest do
   end
 
   defp do_gdb(n, connected?, ng, nh) do
-    {:gdb, _, _, contras} = gdb = GrafBuild.all_graphs(n, connected?)
+    {:gdb, _, homeos, contras} = gdb = GrafBuild.all_graphs(n, connected?)
     IO.inspect(Gdb.ngraph(gdb), label: "n #{n} graphs")
-    IO.inspect(Gdb.niso(gdb),   label: "n #{n} isos")
+    IO.inspect(Gdb.niso(gdb), label: "n #{n} isos")
     IO.inspect(Gdb.nhomeo(gdb), label: "n #{n} homeos")
 
     assert ng == Gdb.niso(gdb)
     assert nh == Gdb.nhomeo(gdb)
     # Draw.graph(g, @out_dir)
-    Enum.each(contras, fn {c, gs} ->
-      names = Enum.map(gs, &Graf.name/1)
-      if Enum.count(gs) > 1 do
-        IO.inspect("#{Graf.name(c)} => #{names}")
-      end
+    Enum.each(homeos, fn
+      {hk, hs} when length(hs) > 1 ->
+        IO.inspect(length(hs))
+
+        names =
+          hs
+          |> Enum.flat_map(fn h -> Map.fetch!(contras, h) end)
+          |> Enum.map(&Graf.name/1)
+
+        IO.inspect(hk, label: "#{names}")
+
+      _ ->
+        :ok
     end)
+
     gdb
   end
 end

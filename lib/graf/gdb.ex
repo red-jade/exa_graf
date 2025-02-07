@@ -6,13 +6,11 @@ defmodule Exa.Graf.Gdb do
 
   import Exa.Types
 
-  import Exa.Std.Mol
-  alias Exa.Std.Mol
+  alias Exa.Std.Mos
 
   use Exa.Graf.Constants
   import Exa.Graf.Types
 
-  # alias Exa.Types, as: E
   alias Exa.Graf.Types, as: G
 
   alias Exa.Graf.Graf
@@ -22,28 +20,25 @@ defmodule Exa.Graf.Gdb do
   # -----
 
   defmodule T do
-    alias Exa.Std.Mol
-
-    # TODO
-    # could speed up query by storing partial indices, not just key
-    # see Graf.isomorphism for details
+    alias Exa.Std.Mos
 
     @typedoc """
     Index for graph isomorphism.
 
-    A map of structural graph hashes to a list of matching graphs.
+    A map of structural graph hash to a map
+    of exemplar graph to a set of isomorphic/undecided graphs.
     """
-    @type iso_index() :: Mol.mol(G.gkey(), G.graph())
+    @type iso_index() :: %{G.gkey() => Mos.mos(G.graph(), G.graph())}
 
-    defguard is_iso(iso) when is_mol(iso)
+    defguard is_iso(iso) when is_map(iso)
 
     @typedoc """
     Index for graph contraction.
 
-    A map of a contracted graph to a list 
-    of the full graphs that have the contraction.
+    A map of a contracted graph to a set of
+    the full graphs that have the contraction.
     """
-    @type con_index() :: Mol.mol(G.graph(), G.graph())
+    @type con_index() :: Mos.mos(G.graph(), G.graph())
 
     @typedoc """
     GDB database index.
@@ -69,76 +64,92 @@ defmodule Exa.Graf.Gdb do
 
   defmodule IsoIndex do
     require Exa.Graf.Gdb.T
-    import  Exa.Graf.Gdb.T
+    import Exa.Graf.Gdb.T
 
     @doc "Create a new empty iso index."
     @spec new() :: T.iso_index()
-    def new(), do: Mol.new()
+    def new(), do: Map.new()
 
     @doc "Add a graph to the iso index."
     @spec add(T.iso_index(), G.graph()) :: T.iso_index()
     def add(iso, g) when is_iso(iso) and is_graph(g), do: do_add(iso, Graf.gkey(g), g)
 
     @spec do_add(T.iso_index(), G.gkey(), G.graph()) :: T.iso_index()
-    defp do_add(iso, gkey, g), do: Mol.append(iso, gkey, g)
 
-    @doc """
-    Add a graph to the iso index,
-    but only if the graph is unique 
-    (i.e. not isomorphic to any existing graph).
+    defp do_add(iso, gkey, g) when is_map_key(iso, gkey) do
+      gmos = Map.fetch!(iso, gkey)
+      exs = Map.keys(gmos)
 
-    Undecided graphs are added, although they may not be unique.
-    """
-    @spec add_unique(T.iso_index(), G.graph()) :: T.iso_index()
-    def add_unique(iso, g) when is_iso(iso) and is_graph(g) do
-      gkey = Graf.gkey(g)
+      # graph is added to every exemplar key 
+      # that is isomorphic or undecided status
+      {gmos, updated?} =
+        Enum.reduce(exs, {gmos, false}, fn ex, {gmos, _updated?} = acc ->
+          case Graf.isomorphism(g, ex) do
+            :not_isomorphic -> acc
+            _iso_or_undecided -> {Mos.add(gmos, ex, g), true}
+          end
+        end)
 
-      if iso |> Mol.get(gkey) |> Enum.any?(fn h -> isomorphic?(g, h) end) do
-        iso
-      else
-        do_add(iso, gkey, g)
-      end
+      # if no existing match create new exemplar
+      gmos = if updated?, do: gmos, else: Mos.add(gmos, g, g)
+
+      Map.put(iso, gkey, gmos)
     end
 
-    @spec isomorphic?(G.graph(), G.graph()) :: bool()
-    defp isomorphic?(g1, g2), do: g1 |> Graf.isomorphism(g2) |> is_tuple_tag(:isomorphic)
+    defp do_add(iso, gkey, g) do
+      # new gkey iso set with identity mapping
+      gmos = Mos.new() |> Mos.add(g, g)
+      Map.put(iso, gkey, gmos)
+    end
 
     @doc """
     Get the number of graphs.
 
-    The number of graphs is the total number of values in the index.
-
-    If all graphs have been added uniquely (up to isomorphism)
-    then the number of graphs will be equal to the number of isomorphism classes.
+    The number of graphs is the total number of 
+    distinct values in the index.
     """
     @spec ngraph(T.iso_index()) :: E.count()
-    def ngraph(iso) when is_iso(iso), do: Mol.lengths(iso)
+    def ngraph(iso) when is_iso(iso) do
+      Enum.reduce(Map.values(iso), 0, fn gmos, n ->
+        n + (gmos |> Mos.union_values() |> MapSet.size())
+      end)
+    end
 
     @doc """
     Get the number of isomorphism equivalence classes.
 
-    The number of iso classes is just the number of entries (keys) in the index.
+    The number of iso classes is the number of exemplars in the index.
+    It is calculated as the sum of entries over all graph keys.
     """
     @spec nclass(T.iso_index()) :: E.count()
-    def nclass(iso) when is_iso(iso), do: map_size(iso)
+    def nclass(iso) when is_iso(iso) do
+      Enum.reduce(Map.values(iso), 0, fn gmos, n ->
+        n + map_size(gmos)
+      end)
+    end
 
     @doc """
     Query the index to find isomorphic graphs.
     """
-    @spec query(T.iso_index(), G.graph()) :: Mol.mol(:isomorphic | :undecided, G.graph())
+    @spec query(T.iso_index(), G.graph()) :: MapSet.t(G.graph())
     def query(iso, g) when is_iso(iso) and is_graph(g) do
       gkey = Graf.gkey(g)
+      gset = MapSet.new()
 
-      iso
-      |> Mol.get(gkey)
-      |> Enum.group_by(fn m ->
-        case Graf.isomorphism(m, g) do
-          :not_isomorphic -> :not_isomorphic
-          :undecided -> :undecided
-          {:isomorphic, _mapping} -> :isomorphic
-        end
-      end)
-      |> Map.delete(:not_isomorphic)
+      case Map.get(iso, gkey) do
+        nil ->
+          gset
+
+        gmos ->
+          # accumulate all graphs for every exemplar key 
+          # that is isomorphic or undecided status
+          Enum.reduce(Map.keys(gmos), gset, fn ex, gset ->
+            case Graf.isomorphism(g, ex) do
+              :not_isomorphic -> gset
+              _iso_or_undecided -> MapSet.union(gset, Mos.get(gmos, ex))
+            end
+          end)
+      end
     end
   end
 
@@ -149,7 +160,7 @@ defmodule Exa.Graf.Gdb do
   @doc "Create a new empty GDB store."
   @spec new() :: T.gdb()
   def new() do
-    {:gdb, IsoIndex.new(), IsoIndex.new(), Mol.new()}
+    {:gdb, IsoIndex.new(), IsoIndex.new(), Mos.new()}
   end
 
   @doc "Add a graph to the GDB store."
@@ -162,7 +173,7 @@ defmodule Exa.Graf.Gdb do
       :gdb,
       IsoIndex.add(isos, g),
       IsoIndex.add(homeos, con),
-      Mol.add(contras, con, g)
+      Mos.add(contras, con, g)
     }
   end
 
@@ -196,10 +207,9 @@ defmodule Exa.Graf.Gdb do
   @doc """
   Query the GDB store for isomorphic graphs.
 
-  The result has two classes of matches: 
-  `:isomorphic` and `:undecided` (timeout).
+  The result has includes isomorphic and undecided (timeout) matches.
   """
-  @spec query_isomorphic(T.gdb(), G.graph()) :: Mol.mol(:isomorphic | :undecided, G.graph())
+  @spec query_isomorphic(T.gdb(), G.graph()) :: MapSet.t(G.graph())
   def query_isomorphic({:gdb, isos, _homeos, _contras}, g) when is_graph(g) do
     IsoIndex.query(isos, g)
   end
@@ -207,22 +217,16 @@ defmodule Exa.Graf.Gdb do
   @doc """
   Query the GDB store for homeomorphic graphs.
 
-  The result has two classes of matches: 
-  `:homeomorphic` and `:undecided` (timeout).
+  The result has includes isomorphic and undecided (timeout) matches.
   """
-  @spec query_homeomorphic(T.gdb(), G.graph()) :: Mol.mol(:homeomorphic | :undecided, G.graph())
+  @spec query_homeomorphic(T.gdb(), G.graph()) :: MapSet.t(G.graph())
   def query_homeomorphic({:gdb, _isos, homeos, contras}, g) when is_graph(g) do
     con = Graf.contract_linears(g)
 
     homeos
     |> IsoIndex.query(con)
-    |> Enum.reduce(Mol.new(), fn {key, cs}, out ->
-      key = case key do
-              :isomorphic -> :homeomorphic
-              :undecided -> :undecided
-            end
-      gs = Enum.flat_map(cs, fn c -> Map.fetch!(contras, c) end)
-      Mol.prepends(out, key, gs)
+    |> Enum.reduce(MapSet.new(), fn c, out ->
+      contras |> Mos.get(c) |> MapSet.union(out)
     end)
   end
 end
