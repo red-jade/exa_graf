@@ -3,11 +3,14 @@ defmodule Exa.Graf.GdbTest do
 
   use Exa.Graf.Constants
 
+  alias Exa.Std.Histo1D
+
   alias Exa.Graf.Graf
   alias Exa.Graf.GrafBuild
   alias Exa.Graf.Gdb
+  alias Exa.Graf.Draw
 
-  @out_dir Path.join(["test", "output", "graf", "dot"])
+  @out_dir Path.join(["test", "output", "graf", "all"])
 
   @in_dir Path.join(["test", "input", "graf", "adj"])
 
@@ -111,6 +114,7 @@ defmodule Exa.Graf.GdbTest do
     assert MapSet.new([g32, g32perm, g41]) == g32homeos
   end
 
+  @tag timeout: 60_000
   test "all graphs" do
     # OEIS A000088
     # n:   2 3  4  5   6    7     8      9
@@ -145,7 +149,7 @@ defmodule Exa.Graf.GdbTest do
 
     assert ng == Gdb.niso(gdb)
     assert nh == Gdb.nhomeo(gdb)
-    # Draw.graph(g, @out_dir)
+
     Enum.each(homeos, fn
       {hk, hs} when length(hs) > 1 ->
         IO.inspect(length(hs))
@@ -161,6 +165,58 @@ defmodule Exa.Graf.GdbTest do
         :ok
     end)
 
+    # draw all connected graphs
+    # name using the undirected degree histogram
+    if connected? do
+      out_dir = Path.join(@out_dir, "#{n}")
+
+      gattrs = %{
+        :node => [label: "", shape: :circle, width: 0.1, fillcolor: :lightgray, style: :filled],
+        :edge => [color: :gray]
+      }
+
+      opts = [edge_pair: :none]
+
+      names =
+        Enum.map(Gdb.isomorphisms(gdb), fn g ->
+          histo = Graf.degree_histo1d(g, :in_out)
+          hlist = Histo1D.to_list(histo)
+          uhist = validate_histo(hlist, n)
+          [all, nstr, code] = String.split(Graf.name(g), "_")
+          name = Enum.join([all, nstr, uhist, code], "_")
+          g |> Graf.rename(name) |> Draw.graph(out_dir, gattrs, :png, opts)
+          name
+        end)
+
+      names
+      |> Enum.sort()
+      |> Enum.each(fn name -> IO.inspect(name) end)
+    end
+
     gdb
+  end
+
+  defp validate_histo(hlist, n) do
+    # histo list values are node counts
+    # so sum of histo values is n
+    assert Enum.sum(hlist) == n
+    # degree is the 0-based array index in the histogram
+    # so the maximum length of the list is 1 + 2*(n-1)
+    # when at least one node is linked to all other nodes
+    assert length(hlist) <= 1 + 2 * (n - 1)
+
+    # split the histo into zeroth, odds and evens:
+    [d0 | evens] = Enum.take_every(hlist, 2)
+    odds = Enum.take_every(tl(hlist), 2)
+
+    # the graph is connected, so the degree is never 0
+    assert d0 == 0
+    # bidirectional edges mean degree is always even
+    # so all odd indexes will also be 0
+    assert Enum.all?(odds, &(&1 == 0))
+
+    # evens is the undirected degree histo
+    # pad with zeroes up to the max length
+    Enum.join(evens ++ List.duplicate(0, n - length(evens) - 1))
   end
 end

@@ -56,16 +56,18 @@ defmodule Exa.Graf.Draw do
   @doc """
   Draw a graph.
 
-  Optionally provide a partition for graph layers (stratified node groups).
+  Convert a graph to a DOT file and 
+  render to an image (if GraphViz is installed)
 
-  Convert a graph to a DOT file and render to an image.
+  Optionally provide a partition for graph layers (stratified node groups),
+  and direction flags for pairs and single edges.
+  See `Graf.to_dot_file/4` for full description of options.
   """
-  @spec graph(G.graph(), E.filename(), D.graph_attrs(), D.format(), nil | G.partition()) ::
+  @spec graph(G.graph(), E.filename(), D.graph_attrs(), D.format(), E.options()) ::
           E.filename() | {:error, any()}
-  def graph(g, outdir, attrs \\ %{}, fmt \\ :png, parts \\ nil)
-      when is_graph(g) and
-             is_map(attrs) and (is_nil(parts) or is_map(parts)) and is_atom(fmt) do
-    case Graf.to_dot_file(g, outdir, attrs, parts) do
+  def graph(g, outdir, attrs \\ %{}, fmt \\ :png, opts \\ [])
+      when is_graph(g) and is_map(attrs) and is_atom(fmt) do
+    case Graf.to_dot_file(g, outdir, attrs, opts) do
       {:error, _} = err -> err
       {dot, _text} -> DotRender.render_dot(dot, fmt, outdir)
     end

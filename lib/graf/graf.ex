@@ -28,6 +28,8 @@ defmodule Exa.Graf.Graf do
   import Exa.Dispatch, only: [dispatch: 4, dispatch: 3]
   alias Exa.Exec
 
+  alias Exa.Option
+
   import Exa.Graf.Types
   alias Exa.Graf.Types, as: G
 
@@ -606,7 +608,7 @@ defmodule Exa.Graf.Graf do
   simple permutation to the node labels.
 
   The permutation is a 1-step rotation of the existing labels,
-  where each node is relabelled with the next highest label,
+  where each node is relabelled with the next higher label,
   except the highest label is replaced by the lowest.
 
   If the existing labels form a simple integer range `1..n`
@@ -1410,34 +1412,92 @@ defmodule Exa.Graf.Graf do
   - key for global properties in the graph attribute map
   - basename for the output file
 
-  Optionally supply a partition to be used as 
-  spatial layers in the diagram.
+  There are two approaches to representing undirected graphs:
+  1. Create a single directed edge for each undirected edge, 
+     then only use _weakly connected_ algorithms.
+  2. Create a pair of two directed edges for each undirected edge,
+     one in each direction.
+
+  Note that for a consistent undirected graph, 
+  _all_ edges will be paired, or _all_ will be single.
+
+  There are two options to control rendering of edges, 
+  one for pairs and one for singles.
+  Use options for the two scenarios of undirected structure 
+  to get the desired edge appearance (see below).
+
+  Return the DOT text as `IO.chardata` and the full output filename.
+
+  Use `Exa.Dot.Render.render_dot/3` 
+  to convert the DOT file to PNG or SVG.
+
+  ### Options 
+
+  #### Partition
+
+  `:partition` is a partition (Map of Sets) 
+   to be used as spatial layers in the diagram
+
   Each partition is grouped as `same` rank layer.
   Edges from lower to higher partitions are given `constraint=true` 
   to enforce the sequence of layers.
   Other edges default to `constraint=false`
   and are independent of the layering.
 
-  Return the DOT text as `IO.chardata` and the full output filename.
+  #### Paired Edges
 
-  Use `Exa.Dot.Render.render_dot/3` 
-  to convert the DOT file to PNG or SVG.
+  `:edge_pair` is a `direction` flag for rendering paired bidirectional edges
+
+  An edge pair comprises two directed edges between the same node endpoints.
+  For nodes `i` and `j` the edge pair is `{i, j}` and `{j, i}`.
+
+  When the option is set, the pair is drawn as a single edge:
+  - `:none` no arrowheads are drawn, the edge appears undirected
+  - `:both` both arrowheads are drawn, the edge appears bidirectional
+  - `:forward` (default), or any other value, 
+    the paired edges are drawn separately using forward arrowheads
+
+  #### Single Edges
+
+  `:edge_single` is a `direction` flag for rendering individual unpaired edges
+
+  The value may be:
+  - `:none` no arrowhead is drawn, the edge appears undirected
+  - `:forward` (default), or any other value, 
+    arrow is drawn in the forward direction
+
+  Note the `:back` direction value is ignored 
+  and a default forward arrow is drawn.
+  If you want to reverse arrows, 
+  render the `transpose` of the graph.
   """
-  @spec to_dot_file(G.graph(), E.filename(), D.graph_attrs(), nil | G.partition()) ::
+  @spec to_dot_file(G.graph(), E.filename(), D.graph_attrs(), E.options()) ::
           {E.filename(), IO.chardata()}
 
-  def to_dot_file(g, dotdir, gattrs \\ %{}, parts \\ nil)
+  def to_dot_file(g, dotdir, gattrs \\ %{}, opts \\ [])
       when is_graph(g) and is_filename(dotdir) do
     Exa.File.ensure_dir!(dotdir)
     gname = name(g)
     filename = Exa.File.join(dotdir, gname, [@filetype_dot])
-    {vidx, eidx} = if(is_nil(parts), do: {nil, nil}, else: partition_index(g, parts))
+
+    parts = Option.get_map(opts, :partition, nil)
+
+    {vidx, eidx} =
+      case parts do
+        nil -> {nil, nil}
+        parts -> partition_index(g, parts)
+      end
+
+    edirs = {
+      Option.get_enum(opts, :edge_pair, [:none, :both, :forward], :forward),
+      Option.get_enum(opts, :edge_single, [:none, :forward], :forward)
+    }
 
     dot =
       DOT.new_dot(gname)
       |> DOT.globals(gname, gattrs)
       |> dot_nodes(verts(g), gattrs, parts, vidx)
-      |> dot_edges(edges(g), gattrs, eidx)
+      |> dot_edges(edges(g), gattrs, eidx, edirs)
       |> DOT.end_dot()
       |> DOT.to_file(filename)
 
@@ -1464,16 +1524,18 @@ defmodule Exa.Graf.Graf do
     DOT.nodes(dot, orphans, gattrs)
   end
 
-  defp dot_edges(dot, edges, gattrs, nil), do: DOT.edges(dot, edges, gattrs)
+  defp dot_edges(dot, edges, gattrs, nil, eflags) do
+    DOT.edges(dot, edges, gattrs, eflags)
+  end
 
-  defp dot_edges(dot, edges, gattrs, eidx) do
+  defp dot_edges(dot, edges, gattrs, eidx, eflags) do
     gattrs =
       Enum.reduce(eidx, gattrs, fn {e, {pi, pj}}, gattrs ->
         con = not is_nil(pi) and not is_nil(pj) and pj > pi
         Mol.prepends(gattrs, e, constraint: con)
       end)
 
-    DOT.edges(dot, edges, gattrs)
+    DOT.edges(dot, edges, gattrs, eflags)
   end
 
   @doc """

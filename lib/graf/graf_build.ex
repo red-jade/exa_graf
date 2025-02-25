@@ -146,7 +146,7 @@ defmodule Exa.Graf.GrafBuild do
     # is area of off-diagonal upper triangle in adjacency matrix
     # no diagonal, because no self-loops
     # upper triangle because undirected means lower triangle is symmetric
-    # integer mask values are in the range:  0 .. 2^[n(n-1)/2]-1
+    # integer mask values are in the range:  0 .. 2^[n(n-1)/2] - 1
     nbit = div(n * (n - 1), 2)
     maxmask = (1 <<< nbit) - 1
 

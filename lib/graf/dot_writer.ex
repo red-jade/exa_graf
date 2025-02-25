@@ -16,6 +16,8 @@ defmodule Exa.Graf.DotWriter do
 
   import Exa.Types
 
+  alias Exa.Std.Mol
+
   use Exa.Graf.Constants
   alias Exa.Graf.Types, as: G
   alias Exa.Graf.DotTypes, as: D
@@ -235,10 +237,70 @@ defmodule Exa.Graf.DotWriter do
   @doc """
   Write a list of edges with attributes.
   Each edge is written on a separate line.
+
+  Edge direction flags control arrowhead rendering 
+  for pairs and single edges.
+
+  Values for pair direction:
+  - `:none` single edge appears undirected, no arrowheads drawn 
+  - `:both` single edge appears bidirectional, both arrowheads drawn
+  - `:forward` (default) both edges are drawn using forward arrowheads
+
+  Values for single direction:
+  - `:none` single edge appears undirected, no arrowhead drawn
+  - `:forward` (default) single arrow is drawn in the forward direction
+
   """
-  @spec edges(I.indent(), Enumerable.t({id(), id()}), D.graph_attrs()) :: I.indent()
-  def edges(io, edges, gattrs \\ %{}) do
+  @spec edges(
+          I.indent(),
+          Enumerable.t({id(), id()}),
+          D.graph_attrs(),
+          {pair :: G.direction(), single :: G.direction()}
+        ) :: I.indent()
+  def edges(io, edges, gattrs \\ %{}, eflags \\ {:forward, :forward})
+
+  def edges(io, edges, gattrs, {:forward, :forward}) do
+    # draw all edges with default forward direction value
     Enum.reduce(edges, io, fn e, io -> edge(io, e, gattrs) end)
+  end
+
+  def edges(io, edges, gattrs, dirs) do
+    do_edges({io, MapSet.new(edges)}, gattrs, dirs)
+  end
+
+  defp do_edges({io, eset}, gattrs, dirs) do
+    case Exa.Set.pick(eset) do
+      {:error, _} ->
+        io
+
+      {{i, j} = e, eset} when is_set_member(eset, {j, i}) ->
+        {io, eset} |> do_pair(e, gattrs, dirs) |> do_edges(gattrs, dirs)
+
+      {e, eset} ->
+        {io, eset} |> do_sing(e, gattrs, dirs) |> do_edges(gattrs, dirs)
+    end
+  end
+
+  defp do_pair({io, eset}, {i, j} = e, gattrs, {:forward, _}) do
+    {
+      io |> do_edge(e, gattrs, :forward) |> do_edge({j, i}, gattrs, :forward),
+      MapSet.delete(eset, {j, i})
+    }
+  end
+
+  defp do_pair({io, eset}, {i, j} = e, gattrs, {pair, _}) when pair in [:none, :both] do
+    {
+      do_edge(io, e, gattrs, pair),
+      MapSet.delete(eset, {j, i})
+    }
+  end
+
+  defp do_sing({io, eset}, e, gattrs, {_, sing}) when sing in [:none, :forward] do
+    {do_edge(io, e, gattrs, sing), eset}
+  end
+
+  defp do_edge(io, e, gattrs, dir) do
+    edge(io, e, Mol.prepend(gattrs, e, {:dir, dir}))
   end
 
   @doc """

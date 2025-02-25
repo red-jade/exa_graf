@@ -102,6 +102,16 @@ defmodule Exa.Graf.Gdb do
       Map.put(iso, gkey, gmos)
     end
 
+    @doc "Get all the graphs in the index."
+    @spec graphs(T.iso_index()) :: MapSet.t(G.graph())
+    def graphs(iso) when is_iso(iso) do
+      # index values are distinct, graphs may be repeated
+      # so set semantics are necessary
+      Enum.reduce(Map.values(iso), MapSet.new(), fn gmos, gs ->
+        gmos |> Mos.union_values() |> MapSet.union(gs)
+      end)
+    end
+
     @doc """
     Get the number of graphs.
 
@@ -112,6 +122,21 @@ defmodule Exa.Graf.Gdb do
     def ngraph(iso) when is_iso(iso) do
       Enum.reduce(Map.values(iso), 0, fn gmos, n ->
         n + (gmos |> Mos.union_values() |> MapSet.size())
+      end)
+    end
+
+    @doc """
+    Get all isomorphism equivalence classes.
+
+    Each isomorphism class is represented by an exemplar,
+    which has a specific labelling. 
+    """
+    @spec classes(T.iso_index()) :: MapSet.t(G.graph())
+    def classes(iso) when is_iso(iso) do
+      # index keys are all distinct
+      # so set semantics are not strictly necessary
+      Enum.reduce(Map.values(iso), MapSet.new(), fn gmos, exs ->
+        gmos |> Map.keys() |> MapSet.new() |> MapSet.union(exs)
       end)
     end
 
@@ -177,6 +202,10 @@ defmodule Exa.Graf.Gdb do
     }
   end
 
+  @doc "Get all the graphs in the GDB store."
+  @spec graphs(T.gdb()) :: MapSet.t(G.graph())
+  def graphs({:gdb, isos, _homeos, _contras}), do: IsoIndex.graphs(isos)
+
   @doc """
   Get the number of graphs in the GDB store.
 
@@ -186,6 +215,10 @@ defmodule Exa.Graf.Gdb do
   @spec ngraph(T.gdb()) :: E.count()
   def ngraph({:gdb, isos, _homeos, _contras}), do: IsoIndex.ngraph(isos)
 
+  @doc "Get exemplars for all isomorphism equivalence classes in the GDB store."
+  @spec isomorphisms(T.gdb()) :: MapSet.t(G.graph())
+  def isomorphisms({:gdb, isos, _homeos, _contras}), do: IsoIndex.classes(isos)
+
   @doc """
   Get the number of isomorphism equivalence classes in the GDB store.
 
@@ -194,6 +227,10 @@ defmodule Exa.Graf.Gdb do
   """
   @spec niso(T.gdb()) :: E.count()
   def niso({:gdb, isos, _homeos, _contras}), do: IsoIndex.nclass(isos)
+
+  @doc "Get exemplars for all homeomorphism equivalence classes in the GDB store."
+  @spec homeomorphisms(T.gdb()) :: MapSet.t(G.graph())
+  def homeomorphisms({:gdb, _isos, homeos, _contras}), do: IsoIndex.classes(homeos)
 
   @doc """
   Get the number of homeomorphism equivalence classes in the GDB store.
