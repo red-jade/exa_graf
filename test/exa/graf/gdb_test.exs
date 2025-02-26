@@ -125,10 +125,10 @@ defmodule Exa.Graf.GdbTest do
     do_gdb(5, false, 34, 32)
 
     # OEIS A001349
-    # n:   2 3 4  5   5   7     8      9
+    # n:   2 3 4  5   6   7     8      9
     # gdb: 1 2 6 21 112 853 11117 261080
 
-    # do_gdb(3, true, 2, 2) |>     IO.inspect()
+    # do_gdb(3, true, 2, 2) 
     # do_gdb(4, true, 6, 6)
     _gdb5 = do_gdb(5, true, 21, 19)
 
@@ -139,6 +139,8 @@ defmodule Exa.Graf.GdbTest do
     # Gdb.query_isomorphic(gdb5, @g41) |> IO.inspect(label: "isomorf g41")
 
     # Gdb.query_homeomorphic(gdb5, @g41) |> IO.inspect(label: "homeomorf g41")
+
+    _gdb6 = do_gdb(6, true, 112, 87)
   end
 
   defp do_gdb(n, connected?, ng, nh) do
@@ -190,7 +192,7 @@ defmodule Exa.Graf.GdbTest do
 
       names
       |> Enum.sort()
-      |> Enum.each(fn name -> IO.inspect(name) end)
+      # |> Enum.each(fn name -> IO.inspect(name) end)
     end
 
     gdb

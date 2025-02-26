@@ -224,6 +224,10 @@ defmodule Exa.Graf.Gdb do
 
   The number of iso classes is just the 
   number of entries in the isomorphism index.
+
+  The return value will be less than or equal to the true value,
+  because one hash index will contain more than one equivalence class,
+  if the full graph hash is not enough to discriminate an isomorphism.
   """
   @spec niso(T.gdb()) :: E.count()
   def niso({:gdb, isos, _homeos, _contras}), do: IsoIndex.nclass(isos)
@@ -237,6 +241,10 @@ defmodule Exa.Graf.Gdb do
 
   The number of homeo classes is just the 
   number of entries in the homeomorphism index.
+
+  The return value will be less than or equal to the true value,
+  because one hash index will contain more than one equivalence class,
+  if the full graph hash is not enough to discriminate an isomorphism.
   """
   @spec nhomeo(T.gdb()) :: E.count()
   def nhomeo({:gdb, _isos, homeos, _contras}), do: IsoIndex.nclass(homeos)
