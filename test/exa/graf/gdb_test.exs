@@ -31,15 +31,15 @@ defmodule Exa.Graf.GdbTest do
 
     # null test - empty MoL
     qwheel = Gdb.query_isomorphic(gdb, gwheel)
-    assert %{} == qwheel
+    assert MapSet.new([]) == qwheel
 
     # equality test
     qeq = Gdb.query_isomorphic(gdb, gin)
-    assert %{:isomorphic => [gin]} == qeq
+    assert MapSet.new([gin]) == qeq
 
     # permutation isomorphism test
     qin = Gdb.query_isomorphic(gdb, inperm)
-    assert %{:isomorphic => [qin]} == qeq
+    assert MapSet.new([gin]) == qin
     # Draw.graph(g, @out_dir)
   end
 
@@ -179,20 +179,15 @@ defmodule Exa.Graf.GdbTest do
 
       opts = [edge_pair: :none]
 
-      names =
-        Enum.map(Gdb.isomorphisms(gdb), fn g ->
-          histo = Graf.degree_histo1d(g, :in_out)
-          hlist = Histo1D.to_list(histo)
-          uhist = validate_histo(hlist, n)
-          [all, nstr, code] = String.split(Graf.name(g), "_")
-          name = Enum.join([all, nstr, uhist, code], "_")
-          g |> Graf.rename(name) |> Draw.graph(out_dir, gattrs, :png, opts)
-          name
-        end)
-
-      names
-      |> Enum.sort()
-      # |> Enum.each(fn name -> IO.inspect(name) end)
+      Enum.map(Gdb.isomorphisms(gdb), fn g ->
+        histo = Graf.degree_histo1d(g, :in_out)
+        hlist = Histo1D.to_list(histo)
+        uhist = validate_histo(hlist, n)
+        [all, nstr, code] = String.split(Graf.name(g), "_")
+        name = Enum.join([all, nstr, uhist, code], "_")
+        g |> Graf.rename(name) |> Draw.graph(out_dir, gattrs, :png, opts)
+        name
+      end)
     end
 
     gdb
