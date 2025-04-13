@@ -8,6 +8,7 @@ defmodule Exa.Graf.Draw do
 
   use Exa.Graf.Constants
 
+  import Exa.Types
   alias Exa.Types, as: E
 
   alias Exa.Std.Mol
@@ -66,7 +67,7 @@ defmodule Exa.Graf.Draw do
   @spec graph(G.graph(), E.filename(), D.graph_attrs(), D.format(), E.options()) ::
           E.filename() | {:error, any()}
   def graph(g, outdir, attrs \\ %{}, fmt \\ :png, opts \\ [])
-      when is_graph(g) and is_map(attrs) and is_atom(fmt) do
+      when is_graph(g) and is_map(attrs) and is_atom(fmt) and is_options(opts) do
     case Graf.to_dot_file(g, outdir, attrs, opts) do
       {:error, _} = err -> err
       {dot, _text} -> DotRender.render_dot(dot, fmt, outdir)
@@ -127,7 +128,7 @@ defmodule Exa.Graf.Draw do
         defcol \\ @defdef,
         fmt \\ @deffmt
       )
-      when is_graph(g) and is_map(parts) and is_list(cols) and is_atom(fmt) do
+      when is_graph(g) and is_map(parts) and is_map(def_attrs) and is_list(cols) and is_atom(fmt) do
     # invert the partition
     {vidx, eidx} = Graf.partition_index(g, parts)
 
@@ -155,7 +156,7 @@ defmodule Exa.Graf.Draw do
       end)
 
     # TODO - could pass through indexes as optimization
-    layer_parts = if layers?, do: parts, else: nil
+    layer_parts = if layers?, do: [partition: parts], else: []
     graph(g, outdir, attrs, fmt, layer_parts)
   end
 end
