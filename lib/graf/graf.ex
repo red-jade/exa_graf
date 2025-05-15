@@ -43,15 +43,17 @@ defmodule Exa.Graf.Graf do
 
   import Exa.Std.Mos
   alias Exa.Std.Mos
+  alias Exa.Std.MinHeap
 
   alias Exa.Graf.Adj
   alias Exa.Graf.Dig
   alias Exa.Graf.Traverse
-  alias Exa.Graf.Traverse.Visitor
   alias Exa.Graf.DotReader
   alias Exa.Graf.DotWriter, as: DOT
 
   alias Exa.Graf.DotTypes, as: D
+
+  alias Exa.Graf.Traverse.Api.State
 
   # ---------
   # constants
@@ -1475,11 +1477,10 @@ defmodule Exa.Graf.Graf do
           {E.filename(), IO.chardata()}
 
   def to_dot_file(g, dotdir, gattrs \\ %{}, opts \\ [])
-      when is_graph(g) and is_filename(dotdir) do
+      when is_graph(g) and is_filename(dotdir) and is_options(opts) do
     Exa.File.ensure_dir!(dotdir)
     gname = name(g)
     filename = Exa.File.join(dotdir, gname, [@filetype_dot])
-
     parts = Option.get_map(opts, :partition, nil)
 
     {vidx, eidx} =
@@ -1572,6 +1573,38 @@ defmodule Exa.Graf.Graf do
   # graph traversals
   # ----------------
 
+  defmodule ForestSpan do
+    # a DFF is an Map of Lists; empty stack List of Lists for children
+    defstruct dff: Mol.new(), lol: [[]]
+  end
+
+  defimpl State, for: ForestSpan do
+    defdelegate init_state(state, g), to: State.Any
+    defdelegate test_node(state, g, i), to: State.Any
+
+    def pre_component(%ForestSpan{dff: dff} = fs, _g, root) do
+      # add new root to forest
+      %ForestSpan{fs | dff: Mol.append(dff, :forest, root)}
+    end
+
+    def pre_branch(%ForestSpan{lol: lol} = fs, _g, _i0) do
+      # push an empty list of children onto the stack
+      %ForestSpan{fs | lol: [[] | lol]}
+    end
+
+    # leaf node, dff no-op default empty, push i into the parent child list
+    def visit_leaf(%ForestSpan{dff: dff, lol: [is | lol]} = fs, _g, i) do
+      %ForestSpan{fs | dff: dff, lol: [[i | is] | lol]}
+    end
+
+    # pop the stack, build the tree adjacency, push i into the parent child list
+    def post_branch(%ForestSpan{dff: dff, lol: [js, is | lol]}, _g, i) do
+      {Mol.set(dff, i, Enum.reverse(js)), [[i | is] | lol]}
+    end
+
+    def final_result(%ForestSpan{dff: dff}), do: dff
+  end
+
   @doc """
   Build a spanning forest for the graph.
 
@@ -1617,56 +1650,118 @@ defmodule Exa.Graf.Graf do
   @spec spanning_forest(G.graph(), G.connectivity(), nil | G.vert()) :: G.forest()
   def spanning_forest(g, conn, root \\ nil)
       when is_graph(g) and (is_nil(root) or is_vert(root)) and is_conn(conn) do
-    cb = %Visitor{
-      # a DFF is an Map of Lists; empty stack List of Lists for children
-      init_state: fn _g -> {Mol.new(), [[]]} end,
-      pre_tree: fn {dff, lol}, _g, root ->
-        # add new root to forest
-        {Mol.append(dff, :forest, root), lol}
-      end,
-      pre_node: fn {dff, lol}, _g, _i ->
-        # push an empty list of children onto the stack
-        {dff, [[] | lol]}
-      end,
-      post_node: fn {dff, [js, is | lol]}, _g, i ->
-        # pop the stack, build the tree adjacency, push i into the parent child list
-        {Mol.set(dff, i, Enum.reverse(js)), [[i | is] | lol]}
-      end,
-      final_result: fn {dff, [_]} -> dff end
-    }
-
-    Traverse.graph(g, :dfs, conn, cb, root)
+    Traverse.graph(g, conn, :dfs, %ForestSpan{}, root)
   end
 
   # -----------------
   # forest traversals
   # -----------------
 
+  defmodule DffDump do
+    defstruct indent: []
+  end
+
+  defimpl State, for: DffDump do
+    def init_state(dump, _g), do: %DffDump{dump | indent: ["  "]}
+    defdelegate test_node(state, g, i), to: State.Any
+    defdelegate pre_component(state, g, root), to: State.Any
+    defdelegate final_result(state), to: State.Any
+
+    def pre_branch(%DffDump{indent: indent} = dump, _g, i) do
+      IO.puts([indent, "#{i} pre"])
+      %DffDump{dump | indent: ["  " | indent]}
+    end
+
+    def visit_leaf(%DffDump{indent: indent} = dump, _g, i) do
+      IO.puts([indent, "#{i} leaf"])
+      dump
+    end
+
+    def post_branch(%DffDump{indent: indent} = dump, _g, i) do
+      indent = tl(indent)
+      IO.puts([indent, "#{i} post"])
+      %DffDump{dump | indent: indent}
+    end
+  end
+
+  defmodule DffPre do
+    defstruct path: [], order: []
+  end
+
+  defimpl State, for: DffPre do
+    defdelegate init_state(state, g), to: State.Any
+    defdelegate test_node(state, g, i), to: State.Any
+    defdelegate pre_component(state, g, root), to: State.Any
+
+    def pre_branch(%DffPre{path: path, order: ord} = pre, _g, i) do
+      %DffPre{pre | path: [i | path], order: [i | ord]}
+    end
+
+    def visit_leaf(%DffPre{order: ord} = pre, _g, i) do
+      %DffPre{pre | order: [i | ord]}
+    end
+
+    def post_branch(%DffPre{path: path} = pre, _g, _i) do
+      %DffPre{pre | path: tl(path)}
+    end
+
+    def final_result(%DffPre{order: ord}), do: Enum.reverse(ord)
+  end
+
+  defmodule DffPost do
+    defstruct path: [], order: []
+  end
+
+  defimpl State, for: DffPost do
+    defdelegate init_state(state, g), to: State.Any
+    defdelegate test_node(state, g, i), to: State.Any
+    defdelegate pre_component(state, g, root), to: State.Any
+
+    def pre_branch(%DffPre{path: path} = pre, _g, i) do
+      %DffPre{pre | path: [i | path]}
+    end
+
+    def visit_leaf(%DffPre{order: ord} = pre, _g, i) do
+      %DffPre{pre | order: [i | ord]}
+    end
+
+    def post_branch(%DffPre{path: path, order: ord} = pre, _g, i) do
+      %DffPre{pre | path: tl(path), order: [i | ord]}
+    end
+
+    def final_result(%DffPre{order: ord}), do: Enum.reverse(ord)
+  end
+
+  defmodule ForestPart do
+    # component root; MoS graph partition 
+    defstruct root: nil, part: Mos.new()
+  end
+
+  defimpl State, for: ForestPart do
+    defdelegate init_state(state, g), to: State.Any
+    defdelegate test_node(state, g, i), to: State.Any
+    defdelegate post_branch(state, g, i), to: State.Any
+
+    def pre_component(%ForestPart{} = fp, _g, root) do
+      %ForestPart{fp | root: root}
+    end
+
+    def pre_branch(%ForestPart{root: root, part: part} = fp, _g, i) do
+      %ForestPart{fp | part: Mos.add(part, root, i)}
+    end
+
+    def visit_leaf(%ForestPart{root: root, part: part} = fp, _g, i) do
+      %ForestPart{fp | part: Mos.add(part, root, i)}
+    end
+
+    def final_result(%ForestPart{part: part}), do: part
+  end
+
   @doc """
   Print out an indented view of the traversal of a Depth First Forest.
   """
   @spec dump_forest(G.forest()) :: nil
-  def dump_forest(dff) when is_forest(dff) do
-    Traverse.forest(
-      dff,
-      %Visitor{
-        init_state: fn _ -> ["  "] end,
-        pre_node: fn indent, _g, i ->
-          IO.puts([indent, "#{i} pre"])
-          ["  " | indent]
-        end,
-        visit_node: fn indent, _g, i ->
-          IO.puts([indent, "#{i} leaf"])
-          indent
-        end,
-        post_node: fn indent, _g, i ->
-          indent = tl(indent)
-          IO.puts([indent, "#{i} post"])
-          indent
-        end
-      }
-    )
-  end
+  def dump_forest(dff) when is_forest(dff), do: Traverse.forest(dff, %DffDump{})
 
   @doc """
   Convert a Depth First Forest to a _partition_ of the graph.
@@ -1693,20 +1788,7 @@ defmodule Exa.Graf.Graf do
   and vertex fragments, which combine to form the original tree.
   """
   @spec forest_partition(G.forest()) :: G.partition()
-  def forest_partition(dff) when is_forest(dff) do
-    node_cb = fn {root, part}, _g, i -> {root, Mos.add(part, root, i)} end
-
-    Traverse.forest(
-      dff,
-      %Visitor{
-        init_state: fn _ -> {nil, Mos.new()} end,
-        pre_tree: fn {_, part}, _g, i -> {i, part} end,
-        pre_node: node_cb,
-        visit_node: node_cb,
-        final_result: fn {_root, part} -> part end
-      }
-    )
-  end
+  def forest_partition(dff) when is_forest(dff), do: Traverse.forest(dff, %ForestPart{})
 
   @doc """
   Convert a forest to a graph containing just the trees.
@@ -1725,31 +1807,149 @@ defmodule Exa.Graf.Graf do
 
   @doc "Get a pre-order traversal sequence of vertices."
   @spec preorder(G.forest()) :: G.verts()
-  def preorder(dff) when is_forest(dff) do
-    Traverse.forest(
-      dff,
-      %Visitor{
-        init_state: fn _ -> {[], []} end,
-        pre_node: fn {path, ord}, _g, i -> {[i | path], [i | ord]} end,
-        visit_node: fn {path, ord}, _g, i -> {path, [i | ord]} end,
-        post_node: fn {[_ | path], ord}, _g, _i -> {path, ord} end,
-        final_result: fn {[], ord} -> Enum.reverse(ord) end
-      }
-    )
-  end
+  def preorder(dff) when is_forest(dff), do: Traverse.forest(dff, %DffPre{})
 
   @doc "Get a post-order traversal sequence of vertices."
   @spec postorder(G.forest()) :: G.verts()
-  def postorder(dff) when is_forest(dff) do
-    Traverse.forest(
-      dff,
-      %Visitor{
-        init_state: fn _ -> {[], []} end,
-        pre_node: fn {path, ord}, _g, i -> {[i | path], ord} end,
-        visit_node: fn {path, ord}, _g, i -> {path, [i | ord]} end,
-        post_node: fn {[_ | path], ord}, _g, i -> {path, [i | ord]} end,
-        final_result: fn {[], ord} -> Enum.reverse(ord) end
-      }
-    )
+  def postorder(dff) when is_forest(dff), do: Traverse.forest(dff, %DffPost{})
+
+  # choose Map, Ord or Tree
+  @heap Exa.Std.MinHeap.Map
+
+  # @doc """
+  # Single source shortest path traversal.
+
+  # Finds a path of shortest length
+  # between source and destination vertices.
+  # If there is more than one shortest path,
+  # an arbitrary instance is returned.
+
+  # Connectivity controls the way edges are traversed:
+  # - `:weak` both incoming and outgoing edges
+  # - `:strong` (default) only outgoing edges
+
+  # It is an error if the source or destination vertex
+  # does not exist in the graph.
+  # """
+  # @spec sssp(G.graph(), G.vert(), G.vert(), G.connectivity()) :: [G.path()]
+  # def sssp(g, src, dst, conn \\ :strong) when is_graph(g) and is_vert(src) and is_vert(dst) do
+  #   assert_vert!(g, src)
+  #   assert_vert!(g, dst)
+
+  #   Traverse.graph(
+  #     g,
+  #     :bfs,
+  #     conn,
+  #     %Visitor{
+  #       init_state: fn _ -> {%{}, []} end,
+  #       test_node: fn
+  #         # TODO - empty case when src=dst at root
+  #         # {pmap, []=path}, _g, ^dst -> 
+  #         #  {:halt, {Map.put(pmap, dst, par), [dst | path]}}
+  #         {pmap, [par | _] = path}, _g, ^dst ->
+  #           {:halt, {Map.put(pmap, dst, par), [dst | path]}}
+
+  #         _state, _g, _i ->
+  #           :continue
+  #       end,
+  #       pre_branch: fn {pmap, [par | _] = path}, _g, i ->
+  #         {Map.put(pmap, i, par), [i | path]}
+  #       end,
+  #       visit_leaf: fn {pmap, [par | _] = path}, _g, i ->
+  #         {Map.put(pmap, i, par), [i | path]}
+  #       end,
+  #       post_branch: fn {pmap, path}, _g, _i -> {pmap, tl(path)} end,
+  #       final_result: fn {pmap, _path} -> pmap end
+  #     },
+  #     src
+  #   )
+  # end
+
+  # @doc """
+  # Dijkstra's algorithm for single source all distances traversal.
+
+  # Finds a map of shortest distances
+  # between a source vertex and all other reachable vertices.
+
+  # Connectivity controls the way edges are traversed:
+  # - `:weak` both incoming and outgoing edges
+  # - `:strong` (default) only outgoing edges
+
+  # It is an error if the source vertex
+  # does not exist in the graph.
+  # """
+  # @spec dijkstra(G.graph(), G.vert(), G.vert(), G.connectivity()) :: [G.path()]
+  # def dijkstra(g, src, dst, conn \\ :strong) when is_graph(g) and is_vert(src) and is_vert(dst) do
+  #   assert_vert!(g, src)
+  #   assert_vert!(g, dst)
+
+  #   # fn path, _g, i -> [i | path] end
+
+  #   Traverse.graph(
+  #     g,
+  #     heap_traversor(),
+  #     conn,
+  #     %Visitor{
+  #       init_state: fn _ -> [] end,
+  #       test_node: fn
+  #         path, _g, ^dst -> {:halt, [dst | path]}
+  #         _path, _g, _i -> :continue
+  #       end,
+  #       pre_branch: fn path, _g, i -> [i | path] end,
+  #       # visit_leaf: fn path, _g, i -> [i | path] end,
+  #       post_branch: fn path, _g, _i -> tl(path) end,
+  #       final_result: fn path -> Enum.reverse(path) end
+  #     },
+  #     src
+  #   )
+  # end
+
+  # defp heap_traversor() do
+  #   %Traversor{
+  #     :init_vdata => fn g ->
+  #       # replace with new(map)
+  #       heap =
+  #         Enum.reduce(verts(g), @heap.new(), fn i, h ->
+  #           MinHeap.add(h, i, :inf)
+  #         end)
+
+  #       IO.inspect(heap, label: "init")
+
+  #       {0, heap}
+  #     end,
+  #     :pop_node => fn {_d, heap} ->
+  #       case MinHeap.pop(heap |> IO.inspect(label: "pop")) do
+  #         # TODO - end of traversal
+  #         :empty -> {:empty, heap}
+  #         {{i, d}, heap} -> {i, {d, heap}}
+  #       end
+  #     end,
+  #     :push_nodes => fn {d, heap}, front ->
+  #       IO.inspect(front)
+  #       # TODO - fake
+  #       type = if MapSet.size(front) == 1, do: :leaf, else: :branch
+  #       # all edges are given weight 1
+  #       d = d + 1
+  #       IO.inspect(heap, label: "push #{d}")
+
+  #       heap =
+  #         Enum.reduce(front, heap, fn i, h ->
+  #           idist = MinHeap.get(h, i) |> IO.inspect(label: "idist")
+  #           if not is_nil(idist) and d < idist, do: MinHeap.update(h, i, d), else: h
+  #         end)
+
+  #       {type, {d, heap}}
+  #     end,
+  #     select_root: fn {0, heap}, r when not is_nil(r) ->
+  #       # TODO - nil means end of component
+  #       {r, {0, MinHeap.update(heap, r, 0) |> IO.inspect(label: "select")}}
+  #     end
+  #   }
+  # end
+
+  defp assert_vert!(g, i) do
+    if not vert?(g, i) do
+      raise ArgumentError, message: "Vertex #{i} does not exist"
+    end
   end
 end

@@ -1,7 +1,6 @@
 defmodule Exa.Graf.Traverse do
   @moduledoc """
-  Graph 
-  Traversal utilities for graphs and forests.
+  Graph traversal utilities for graphs and forests.
 
   Provide generalized traversal for:
   - graphs: Depth First Search (DFS), Breadth First Search (BFS) 
@@ -22,101 +21,22 @@ defmodule Exa.Graf.Traverse do
 
   alias Exa.Graf.Graf
 
-  # --------------------
-  # graph/forest visitor
-  # --------------------
+  alias Exa.Graf.Traverse.Api.Control
+  alias Exa.Graf.Traverse.Api.State
 
-  @typedoc """
-  Function to initialize the traversal state.
+  # -----
+  # types
+  # -----
 
-  Default implementation is to return `nil`.
-  """
-  @type init_fun(s) :: (G.graph() -> s)
+  # any struct that implements the Traverse.Api.Control protocol
 
-  @typedoc """
-  Function invoked for a tree or vertex traversal.
+  defguard is_control(c) when is_struct(c)
 
-  There are two types of traversal:
-  - DFS of a graph, or traversal of a DFF forest
-  - BFS of a graph
+  # any struct that implements the Traverse.Api.State protocol
 
-  There are four situations where this type of function is invoked:
-  - DFS/DFF/BFS before traversal of a new tree; vert argument is root
-  - DFS/DFF before (pre) traversal of branch children
-  - BFS any node; or DFF leaf node
-  - DFS after (post) traversal of children
+  defguard is_state(s) when is_struct(s)
 
-  Default implementation passes through the state unchanged.
-  """
-  @type node_fun(s) :: (s, G.graph(), G.vert() -> s)
-
-  @typedoc """
-  Function to convert the final traversal state to a result.
-
-  Typically this will be a simple reformatting, 
-  such as reversing lists, or discarding completed counters.
-
-  Default implementation is to pass the state through unchanged.
-  """
-  @type final_fun(s, r) :: (s -> r)
-
-  defmodule DefaultFuns do
-    def nil_state(_), do: nil
-    def pass_through(state, _, _), do: state
-    def pass_through(state), do: state
-  end
-
-  defmodule Visitor do
-    @moduledoc """
-    Callbacks for traversal of a graph or Depth First Forest.
-
-    Functions invoked for all traversals:
-    - `init_state`
-    - `pre_tree`
-    - `final_result`
-
-    Additional functions for DFS graph search:
-    - `pre_node`
-    - `post_node`
-
-    Additional functions for BFS graph search:
-    - `visit_node`
-
-    Additional functions for DFF traversal:
-    - branch nodes:
-      - `pre_node`
-      - `post_node`
-    - leaf nodes:
-      - `visit_node`
-
-    Default implementations are provided for all callbacks.
-    Only define the callbacks you need.
-    """
-
-    import DefaultFuns
-
-    defstruct init_state: &nil_state/1,
-              # dfs or bfs or dff start of new tree in the forest
-              pre_tree: &pass_through/3,
-              # dfs or dff branch preorder before children
-              pre_node: &pass_through/3,
-              # bfs node or dff leaf 
-              visit_node: &pass_through/3,
-              # dfs or dff branch postorder after children
-              post_node: &pass_through/3,
-              final_result: &pass_through/1
-  end
-
-  @type visitor(s, r) :: %Visitor{
-          init_state: init_fun(s),
-          pre_tree: node_fun(s),
-          pre_node: node_fun(s),
-          visit_node: node_fun(s),
-          post_node: node_fun(s),
-          final_result: final_fun(s, r)
-        }
-
-  defguardp is_visitor(v) when is_struct(v, Visitor)
+  @typep traversor() :: {Control.t(), State.t()}
 
   # ----------------
   # public functions
@@ -133,85 +53,153 @@ defmodule Exa.Graf.Traverse do
   - weak: in and out adjacency
   - strong: only out adjacency
 
-  If the tree is not connected 
-  accordingly to the connectivity argument,
-  then the traversal will comprise multiple trees.
+  If the tree is not connected, 
+  in the sense of the connectivity argument,
+  then the traversal will comprise multiple components.
+  For a Depth First Forest, the components will be pure trees.
 
   The visitor defines callbacks that are invoked 
   at various points during traversal.
+
+  Note that the `visit_node` callback is invoked for 
+  all nodes, both leaf and branch nodes.
 
   Optionally, a starting vertex may be provided,
   otherwise the vertex is chosen arbitrarily.
   """
   @spec graph(
           G.graph(),
-          G.traversality(),
           G.connectivity(),
-          visitor(any(), r),
+          G.traversality() | Control.t(),
+          State.t(),
           nil | G.vert()
-        ) :: r
-        when r: var
-  def graph(g, travy, conn, cb, root \\ nil)
-      when (is_nil(root) or is_vert(root)) and is_graph(g) and is_trav(travy) and
-             is_conn(conn) and is_visitor(cb) do
-    {g |> Graf.verts() |> MapSet.new(), cb.init_state.(g)}
-    |> do_tree(root, g, adjacency(conn), cb, search(travy))
-    |> cb.final_result.()
+        ) :: any()
+  def graph(g, conn, travy, stat, root \\ nil)
+      when is_graph(g) and
+             is_conn(conn) and
+             (is_trav(travy) or is_control(travy)) and
+             is_state(stat) and
+             (is_nil(root) or is_vert(root)) do
+    if not is_nil(root) and not Graf.vert?(g, root) do
+      raise ArgumentError, message: "Vertex #{root} not in graph"
+    end
+
+    trav =
+      cond do
+        travy == :dfs -> Exa.Graf.Traverse.Dfs.new()
+        travy == :bfs -> Exa.Graf.Traverse.Bfs.new()
+        Protocol.assert_impl!(Control, travy) == :ok -> travy
+      end
+
+    adjy =
+      case conn do
+        :weak -> :in_out
+        :strong -> :out
+      end
+
+    front_fun = fn i -> g |> Graf.reachable(i, adjy, 1) |> MapSet.delete(i) end
+
+    # TODO - need proper final state merging both trav and state
+    #        e.g. and prompt halt with trav from ss all distances
+
+    {Control.init_data(trav, g), State.init_state(stat, g)}
+    |> do_component(root, g, front_fun)
+    |> elem(1)
+    |> State.final_result()
+  catch
+    :throw, {:halt, state} ->
+      # prompt return from a search traversal
+      State.final_result(state)
   end
 
-  @spec do_tree({G.vset(), s}, nil | G.vert(), G.graph(), G.adjacency(), visitor(s, r), fun()) ::
-          r
-        when s: var, r: var
+  # traverse a connected component
+  @spec do_component(traversor(), nil | G.vert(), G.graph(), fun()) :: traversor()
+  defp do_component({trav, state}, root, g, front_fun) do
+    case Control.select_root(trav, root) do
+      {:empty, trav} ->
+        {trav, state}
 
-  defp do_tree({vs, state}, _root, _g, _adjy, _cb, _search) when set_size(vs) == 0, do: state
-
-  defp do_tree({vs, state}, root, g, adjy, cb, search) do
-    root = root(root, vs)
-
-    state
-    |> cb.pre_tree.(g, root)
-    |> search.([root], g, adjy, vs, cb)
-    |> do_tree(nil, g, adjy, cb, search)
+      {root, trav} ->
+        {trav, state}
+        |> wrap_node_fun(fn s -> State.pre_component(s, g, root) end)
+        |> do_traverse(g, front_fun)
+        |> do_component(nil, g, front_fun)
+    end
   end
 
-  defp root(i, vs) when is_vert(i) and is_set_member(vs, i), do: i
-  defp root(nil, vs), do: vs |> Enum.take(1) |> hd()
+  # traverse the next node 
+  @spec do_traverse(traversor(), G.graph(), fun()) :: traversor()
+  defp do_traverse({trav, state}, g, front_fun) do
+    case Control.pop_node(trav) do
+      {:empty, trav} ->
+        {trav, state}
 
-  defp search(:dfs), do: &dfs/6
-  defp search(:bfs), do: &bfs/6
+      {i, trav} ->
+        case State.test_node(state, g, i) do
+          {:halt, _state} = halt -> throw(halt)
+          :cont -> :ok
+        end
 
-  defp adjacency(:weak), do: :in_out
-  defp adjacency(:strong), do: :out
+        # leaf and branch don't really make sense for bfs
+        # because they are executed out-of-sequence wrt children
 
-  @spec bfs(s, G.verts(), G.graph(), G.adjacency(), G.vset(), visitor(s, any())) :: {G.vset(), s}
-        when s: var
+        case Control.push_nodes(trav, front_fun.(i)) do
+          {:leaf, trav} ->
+            {trav, state}
+            |> wrap_node_fun(fn s -> State.visit_leaf(s, g, i) end)
+            |> do_traverse(g, front_fun)
 
-  defp bfs(state, [i | front], g, adjy, vs, cb) do
-    vs = MapSet.delete(vs, i)
-    hop = g |> Graf.reachable(i, adjy, 1) |> MapSet.intersection(vs)
-    vs = MapSet.difference(vs, hop)
-    state |> cb.visit_node.(g, i) |> bfs(front ++ MapSet.to_list(hop), g, adjy, vs, cb)
+          {:branch, trav} ->
+            {trav, state}
+            |> wrap_node_fun(fn s -> State.pre_branch(s, g, i) end)
+            |> do_traverse(g, front_fun)
+            |> wrap_node_fun(fn s -> State.post_branch(s, g, i) end)
+        end
+    end
   end
 
-  defp bfs(state, [], _g, _adjy, vs, _cb), do: {vs, state}
+  # apply a node fun state change and pass through trav
+  defp wrap_node_fun({trav, state}, fun), do: {trav, fun.(state)}
 
-  @spec dfs(s, G.verts(), G.graph(), G.adjacency(), G.vset(), visitor(s, any())) :: {G.vset(), s}
-        when s: var
+  @doc """
+  Traverse a Depth First Forest (DFF)
+  by applying callbacks from a visitor.
 
-  defp dfs(state, [i], g, adjy, vs, cb) when is_set_member(vs, i) do
-    vs = MapSet.delete(vs, i)
-    pre = cb.pre_node.(state, g, i)
-    hop = g |> Graf.reachable(i, adjy, 1) |> MapSet.delete(i)
+  Generate the DFF using `Exa.Graf.Graf.spanning_forest/3`.
 
-    {vs, state} =
-      Enum.reduce(hop, {vs, pre}, fn j, {vs, state} ->
-        dfs(state, [j], g, adjy, vs, cb)
-      end)
+  The optional graph is only used 
+  as an argument to visitor callbacks.
+  If it is not needed by the visitor, 
+  it can be omitted.
+  """
+  @spec forest(G.forest(), State.t(), nil | G.graph()) :: any()
+  def forest(forest, state, g \\ nil)
+      when (is_nil(g) or is_graph(g)) and
+             is_forest(forest) and is_state(state) do
+    roots = Mol.get(forest, :forest)
 
-    {vs, cb.post_node.(state, g, i)}
+    State.init_state(state, g)
+    |> reduce(roots, fn root, state ->
+      state |> State.pre_component(g, root) |> dff(root, forest, g)
+    end)
+    |> State.final_result()
   end
 
-  defp dfs(state, _v, _g, _adjy, vs, _cb), do: {vs, state}
+  defp dff(state, i, forest, g) do
+    case Mol.get(forest, i) do
+      [] ->
+        State.visit_leaf(state, g, i)
+
+      children ->
+        state
+        |> State.pre_branch(g, i)
+        |> reduce(children, fn j, state -> dff(state, j, forest, g) end)
+        |> State.post_branch(g, i)
+    end
+  end
+
+  # reverse args to pipe accumulator state
+  defp reduce(acc, enum, fun), do: Enum.reduce(enum, acc, fun)
 
   @doc """
   Depth-first search of a graph to find a cycle.
@@ -273,40 +261,4 @@ defmodule Exa.Graf.Traverse do
   defp no_backtrack(neigh, nil), do: neigh
   defp no_backtrack({ins, outs}, {:in, k}), do: {MapSet.delete(ins, k), outs}
   defp no_backtrack({ins, outs}, {:out, k}), do: {ins, MapSet.delete(outs, k)}
-
-  @doc """
-  Traverse a Depth First Forest (DFF)
-  by applying callbacks from a visitor.
-
-  Generate the DFF using `Exa.Graf.Graf.spanning_forest/3`.
-
-  The optional graph is only used 
-  as an argument to visitor callbacks.
-  If it is not needed by the visitor, 
-  it can be omitted.
-  """
-  @spec forest(G.forest(), visitor(any(), r), nil | G.graph()) :: r when r: var
-  def forest(forest, cb, g \\ nil)
-      when (is_nil(g) or is_graph(g)) and is_forest(forest) and is_visitor(cb) do
-    forest
-    |> Mol.get(:forest)
-    |> Enum.reduce(cb.init_state.(g), fn root, state ->
-      state |> cb.pre_tree.(g, root) |> dff(root, forest, cb, g)
-    end)
-    |> cb.final_result.()
-  end
-
-  defp dff(state, i, forest, cb, g) do
-    case Mol.get(forest, i) do
-      [] ->
-        cb.visit_node.(state, g, i)
-
-      children ->
-        children
-        |> Enum.reduce(cb.pre_node.(state, g, i), fn j, state ->
-          dff(state, j, forest, cb, g)
-        end)
-        |> cb.post_node.(g, i)
-    end
-  end
 end

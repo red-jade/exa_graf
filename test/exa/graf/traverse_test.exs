@@ -3,13 +3,17 @@ defmodule Exa.Graf.TraverseTest do
 
   use Exa.Graf.Constants
 
-  alias Exa.Graf.Traverse
-  alias Exa.Graf.Traverse.Visitor
-
   alias Exa.Graf.Graf
+  alias Exa.Graf.Traverse
 
   # TODO - need more complex test cases here
   #        forest trees should be fan-out, not just linear chains
+
+  # wikipedia directed graph example
+  # many directed 3- and 2-cycles
+  @wiki Graf.new(:adj, "wiki")
+        |> Graf.add([{1, 2, 3, 1}, {4, 5, 6, 5, 4}, {7, 8, 7}])
+        |> Graf.add([{2, 7}, {3, 7}, {4, 8}, {6, 8}])
 
   test "simple" do
     # simple rooted dag
@@ -25,15 +29,20 @@ defmodule Exa.Graf.TraverseTest do
   end
 
   test "wikipedia scc" do
-    wik =
-      Graf.new(:adj, "wik")
-      |> Graf.add([{1, 2, 3, 1}, {4, 5, 6, 5, 4}, {7, 8, 7}])
-      |> Graf.add([{2, 7}, {3, 7}, {4, 8}, {6, 8}])
+    weak_dff = Graf.spanning_forest(@wiki, :weak)
 
-    weak_dff = Graf.spanning_forest(wik, :weak)
+    expect = %{
+      1 => [2],
+      2 => [3],
+      3 => [7],
+      4 => [5],
+      5 => [6],
+      7 => [8],
+      8 => [4],
+      :forest => [1]
+    }
 
-    assert %{1 => [2], 2 => [3], 3 => [7], 4 => [5], 5 => [6], 7 => [8], 8 => [4], :forest => [1]} ==
-             weak_dff
+    assert expect == weak_dff
 
     # Graf.dump_forest(weak_dff)
     pre = Graf.preorder(weak_dff)
@@ -41,7 +50,7 @@ defmodule Exa.Graf.TraverseTest do
     post = Graf.postorder(weak_dff)
     assert [6, 5, 4, 8, 7, 3, 2, 1] == post
 
-    strong_dff = Graf.spanning_forest(wik, :strong)
+    strong_dff = Graf.spanning_forest(@wiki, :strong)
 
     assert %{1 => [2], 2 => [3], 3 => [7], 4 => [5], 5 => [6], 7 => [8], :forest => [1, 4]} ==
              strong_dff
@@ -83,36 +92,59 @@ defmodule Exa.Graf.TraverseTest do
     assert Graf.cyclic?(dag, :weak)
     assert not Graf.cyclic?(dag, :strong)
 
-    # many directed 3- and 2-cycles
-    wik =
-      Graf.new(:adj, "wik")
-      |> Graf.add([{1, 2, 3, 1}, {4, 5, 6, 5, 4}, {7, 8, 7}])
-      |> Graf.add([{2, 7}, {3, 7}, {4, 8}, {6, 8}])
-
-    assert not Graf.tree?(wik, :weak)
-    assert false == Graf.tree?(wik, :strong)
-    assert Graf.cyclic?(wik, :weak)
-    assert Graf.cyclic?(wik, :strong)
+    assert not Graf.tree?(@wiki, :weak)
+    assert false == Graf.tree?(@wiki, :strong)
+    assert Graf.cyclic?(@wiki, :weak)
+    assert Graf.cyclic?(@wiki, :strong)
   end
 
-  test "dfs" do
-    # many directed 3- and 2-cycles
-    wik =
-      Graf.new(:adj, "wik")
-      |> Graf.add([{1, 2, 3, 1}, {4, 5, 6, 5, 4}, {7, 8, 7}])
-      |> Graf.add([{2, 7}, {3, 7}, {4, 8}, {6, 8}])
+  test "dfs bfs" do
+    # preorder
 
-    cb = %Visitor{
-      init_state: fn _ -> [] end,
-      pre_node: fn is, _g, i -> [i | is] end,
-      visit_node: fn is, _g, i -> [i | is] end,
-      final_result: fn is -> Enum.reverse(is) end
-    }
+    pre = %Pre{}
 
-    dfs = Traverse.graph(wik, :dfs, :weak, cb, 1)
+    # single path in one weakly connected component
+    dfs = Traverse.graph(@wiki, :weak, :dfs, pre, 1)
     assert [1, 2, 3, 7, 8, 4, 5, 6] == dfs
 
-    bfs = Traverse.graph(wik, :bfs, :weak, cb, 1)
-    assert [1, 2, 3, 7, 8, 4, 6, 5] == bfs
+    # 2 strongly connected components
+    # so the restart at 4 is arbitrary
+    dfs = Traverse.graph(@wiki, :strong, :dfs, pre, 1)
+    assert [1, 2, 3, 7, 8, 4, 5, 6] == dfs
+
+    # single traversal in one weakly connected component
+    bfs = Traverse.graph(@wiki, :weak, :bfs, pre, 4)
+    assert [4, 5, 8, 6, 7, 2, 3, 1] == bfs
+
+    # 2 strongly connected components
+    # so the restart at 1 is arbitrary
+    bfs = Traverse.graph(@wiki, :strong, :bfs, pre, 4)
+    assert [4, 5, 8, 6, 7, 1, 2, 3] == bfs
   end
+
+  # test "sssp" do
+  #   sssp18 = Graf.sssp(@wiki, 1, 8, :strong)
+  #   assert [1, 2, 7, 8] == sssp18
+
+  #   sssp58 = Graf.sssp(@wiki, 5, 8, :strong)
+  #   IO.inspect(sssp58)
+  #   assert sssp58 in [[5, 4, 8], [5, 6, 8]]
+
+  #   # TODO - should fail
+  #   sssp14 = Graf.sssp(@wiki, 1, 4, :strong)
+  #   assert [] == sssp18
+  # end
+
+  # test "dijkstra" do
+  #   sssp18 = Graf.dijkstra(@wiki, 1, 8, :strong)
+  #   assert [1, 2, 7, 8] == sssp18
+
+  #   sssp58 = Graf.dijkstra(@wiki, 5, 8, :strong)
+  #   IO.inspect(sssp58)
+  #   assert sssp58 in [[5, 4, 8], [5, 6, 8]]
+
+  #   # TODO - should fail
+  #   sssp14 = Graf.dijkstra(@wiki, 1, 4, :strong)
+  #   assert [] == sssp18
+  # end
 end

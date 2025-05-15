@@ -12,6 +12,7 @@ defmodule Exa.Graf.MixProject do
       version: @ver,
       elixir: "~> 1.17",
       erlc_options: [:verbose, :report_errors, :report_warnings, :export_all],
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: exa_deps() ++ local_deps(),
       docs: docs(),
@@ -19,6 +20,9 @@ defmodule Exa.Graf.MixProject do
       dialyzer: [flags: [:no_improper_lists, :no_behaviours]]
     ]
   end
+
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
 
   def application do
     [
