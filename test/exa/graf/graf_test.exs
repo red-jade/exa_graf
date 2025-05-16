@@ -8,6 +8,10 @@ defmodule Exa.Graf.GrafTest do
   alias Exa.Std.Mol
   alias Exa.Std.Mos
 
+  alias Exa.Graf.Contract
+  alias Exa.Graf.Gio
+  alias Exa.Graf.Morf
+
   @in_dir Path.join(["test", "input", "graf", "adj"])
 
   defp adj_file(name), do: Exa.File.join(@in_dir, name, @filetype_adj)
@@ -166,7 +170,7 @@ defmodule Exa.Graf.GrafTest do
   test "collapse edge" do
     for tag <- [:adj, :dig] do
       g = new(tag, "collapse") |> add([{1, 2}, {2, 2}, {3, 2}, {2, 4}])
-      g = contract_edge(g, {1, 2})
+      g = Contract.edge(g, {1, 2})
       assert [1, 3, 4] == g |> verts() |> Enum.sort()
       assert [{1, 1}, {1, 4}, {3, 1}] == g |> edges() |> Enum.sort()
     end
@@ -343,19 +347,19 @@ defmodule Exa.Graf.GrafTest do
     for nhop <- [0, 1] do
       # build 3-cycle, with self-loops on different vertices
       g1 = new(:adj, "iso1") |> add({1, 1, 2, 3, 1})
-      h1 = hash(g1, nhop)
+      h1 = Morf.hash(g1, nhop)
 
       g2 = new(:adj, "iso2") |> add({1, 2, 2, 3, 1})
-      h2 = hash(g2, nhop)
+      h2 = Morf.hash(g2, nhop)
 
       g3 = new(:adj, "iso3") |> add({1, 2, 3, 3, 1})
-      h3 = hash(g3, nhop)
+      h3 = Morf.hash(g3, nhop)
 
       assert h1 == h2
       assert h2 == h3
       assert h3 == h1
 
-      iso = isomorphism(g1, g2)
+      iso = Morf.isomorphism(g1, g2)
       {:isomorphic, vmap} = iso
       isovalid(g1, g2, vmap)
     end
@@ -364,14 +368,14 @@ defmodule Exa.Graf.GrafTest do
   @tag timeout: 30_000
   test "iso petersen" do
     # try two versions of the Petersen graph
-    peter = "petersen" |> adj_file() |> from_adj_file()
+    peter = "petersen" |> adj_file() |> Gio.from_adj_file()
 
     # self-loop on different verts
     # reduces the difficulty to 4,320
 
     pA = add(peter, {1, 1})
     pB = add(peter, {5, 5})
-    iso = isomorphism(pA, pB)
+    iso = Morf.isomorphism(pA, pB)
     {:isomorphic, vmap} = iso
     isovalid(pA, pB, vmap)
 
@@ -383,11 +387,11 @@ defmodule Exa.Graf.GrafTest do
     l10 = Range.to_list(1..10)
     randmap = Exa.Map.zip_new(l10, Enum.shuffle(l10))
     rpeet = relabel(peter, randmap)
-    iso = isomorphism(peter, rpeet)
+    iso = Morf.isomorphism(peter, rpeet)
     {:isomorphic, vmap} = iso
     isovalid(peter, rpeet, vmap)
 
-    iso = isomorphism(peter, rpeet, 200)
+    iso = Morf.isomorphism(peter, rpeet, 200)
     assert :undecided == iso
   end
 
@@ -398,9 +402,9 @@ defmodule Exa.Graf.GrafTest do
     cychanA = add(cychan, [{3, 6}, {6, 2}])
     cychanB = add(cychan, [{6, 3}, {2, 6}])
 
-    assert hash(cychanA, 0) == hash(cychanB, 0)
-    assert hash(cychanA, 1) != hash(cychanB, 1)
-    assert :not_isomorphic == isomorphism(cychanA, cychanB)
+    assert Morf.hash(cychanA, 0) == Morf.hash(cychanB, 0)
+    assert Morf.hash(cychanA, 1) != Morf.hash(cychanB, 1)
+    assert :not_isomorphic == Morf.isomorphism(cychanA, cychanB)
   end
 
   defp isovalid(g1, g2, vmap), do: assert(g1 |> relabel(vmap) |> equal?(g2))
@@ -410,12 +414,12 @@ defmodule Exa.Graf.GrafTest do
     lt1 = new(:adj, "lt1") |> add([{1, 2, 3, 1}, {3, 4, 5, 6}])
     lt2 = new(:adj, "lt2") |> add([{1, 2, 3, 4, 1}, {4, 5, 6}])
 
-    assert degree_histo3d(lt1) == degree_histo3d(lt1)
-    assert :homeomorphic == homeomorphic?(lt1, lt2)
+    assert Morf.degree_histo3d(lt1) == Morf.degree_histo3d(lt1)
+    assert :homeomorphic == Morf.homeomorphic?(lt1, lt2)
 
     # two loops linked
     ll = new(:adj, "ll") |> add([{1, 2, 3, 1}, {3, 4}, {4, 5, 6, 4}])
-    assert :not_homeomorphic = homeomorphic?(lt1, ll)
+    assert :not_homeomorphic = Morf.homeomorphic?(lt1, ll)
   end
 
   # join ----------

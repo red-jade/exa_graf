@@ -6,8 +6,11 @@ defmodule Exa.Graf.DrawTest do
   alias Exa.Std.Mol
 
   alias Exa.Graf.Graf
+  alias Exa.Graf.Dff
+  alias Exa.Graf.Gio
+
   # alias Exa.Graf.GrafBuild
-  alias Exa.Graf.Draw
+  alias Exa.Graf.Gio.Draw
 
   @out_dir Path.join(["test", "output", "graf", "dot"])
 
@@ -20,7 +23,7 @@ defmodule Exa.Graf.DrawTest do
   test "big random" do
     # g = GrafBuild.random(:adj, 50, 100) |> Graf.rename("rand_50_100")
     # Graf.to_adj_file(g, @in_dir)
-    g = Graf.from_adj_file(in_file("rand_50_100"))
+    g = Gio.from_adj_file(in_file("rand_50_100"))
     Draw.graph(g, @out_dir)
 
     fronts = Graf.frontiers(g, 46)
@@ -63,8 +66,8 @@ defmodule Exa.Graf.DrawTest do
     scomp = Graf.components(g, :strong)
     Draw.partitions(g, scomp, @out_dir)
 
-    dff = Graf.spanning_forest(g, :strong)
-    trees = Graf.forest_graph(dff, "wiki_trees")
+    dff = Dff.new(g, :strong)  
+    trees = Dff.to_graph(dff, "wiki_trees")
     Draw.graph(trees, @out_dir)
 
     all_edges = g |> Graf.edges() |> MapSet.new()
@@ -76,7 +79,7 @@ defmodule Exa.Graf.DrawTest do
         Mol.prepends(attrs, e, color: "gray80")
       end)
 
-    part = Graf.forest_partition(dff)
+    part = Dff.to_partition(dff)
     Draw.partitions(g |> Graf.rename("wiki_forest"), part, @out_dir, eattrs)
   end
 end

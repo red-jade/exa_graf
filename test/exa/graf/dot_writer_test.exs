@@ -6,7 +6,7 @@ defmodule Exa.Graf.DotWriterTest do
   alias Exa.Color.Col3b
   alias Exa.Color.Col3f
 
-  import Exa.Graf.DotWriter
+  import Exa.Graf.Gio.DotWriter
 
   @out_dir ["test", "output", "graf", "dot"]
   defp file(name), do: Exa.File.join(@out_dir, name, @filetype_dot)

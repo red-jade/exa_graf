@@ -1,4 +1,4 @@
-defmodule Exa.Graf.GrafBuildTest do
+defmodule Exa.Graf.BuildTest do
   use ExUnit.Case
 
   use Exa.Graf.Constants
@@ -7,9 +7,11 @@ defmodule Exa.Graf.GrafBuildTest do
   alias Exa.Std.Histo1D
   alias Exa.Std.Histo2D
 
+  alias Exa.Graf.Build
+  alias Exa.Graf.Gio
   alias Exa.Graf.Graf
-  alias Exa.Graf.GrafBuild
-  alias Exa.Graf.DotRender
+  alias Exa.Graf.Morf
+  alias Exa.Graf.Gio.DotRender
 
   @n 10
 
@@ -38,7 +40,7 @@ defmodule Exa.Graf.GrafBuildTest do
     h1out = [10]
     h1inout = [10]
     h2inout = [{{0, 0}, 10}]
-    graphs = grafy(&GrafBuild.dust/2, {h1in, h1out, h1inout, h2inout})
+    graphs = grafy(&Build.dust/2, {h1in, h1out, h1inout, h2inout})
 
     for g <- graphs do
       {1, 10} = Graf.verts_minmax(g)
@@ -56,7 +58,7 @@ defmodule Exa.Graf.GrafBuildTest do
     h1out = [1, 9]
     h1inout = [0, 2, 8]
     h2inout = [{{0, 1}, 1}, {{1, 0}, 1}, {{1, 1}, 8}]
-    graphs = grafy(&GrafBuild.line/2, {h1in, h1out, h1inout, h2inout})
+    graphs = grafy(&Build.line/2, {h1in, h1out, h1inout, h2inout})
 
     for g <- graphs do
       comps = Graf.components(g, :weak)
@@ -77,7 +79,7 @@ defmodule Exa.Graf.GrafBuildTest do
     h1out = [0, 10]
     h1inout = [0, 0, 10]
     h2inout = [{{1, 1}, 10}]
-    graphs = grafy(&GrafBuild.ring/2, {h1in, h1out, h1inout, h2inout})
+    graphs = grafy(&Build.ring/2, {h1in, h1out, h1inout, h2inout})
 
     for g <- graphs do
       comps = Graf.components(g, :weak)
@@ -95,7 +97,7 @@ defmodule Exa.Graf.GrafBuildTest do
     h1out = [1, 9]
     h1inout = [0, 9, 0, 0, 0, 0, 0, 0, 0, 1]
     h2inout = [{{0, 1}, 9}, {{9, 0}, 1}]
-    grafy(&GrafBuild.fan_in/2, {h1in, h1out, h1inout, h2inout})
+    grafy(&Build.fan_in/2, {h1in, h1out, h1inout, h2inout})
   end
 
   test "fan_out" do
@@ -103,15 +105,15 @@ defmodule Exa.Graf.GrafBuildTest do
     h1out = [9, 0, 0, 0, 0, 0, 0, 0, 0, 1]
     h1inout = [0, 9, 0, 0, 0, 0, 0, 0, 0, 1]
     h2inout = [{{0, 9}, 1}, {{1, 0}, 9}]
-    grafy(&GrafBuild.fan_out/2, {h1in, h1out, h1inout, h2inout})
+    grafy(&Build.fan_out/2, {h1in, h1out, h1inout, h2inout})
   end
 
   test "fan in/out iso" do
-    fin = GrafBuild.fan_in(:adj, @n)
-    fout = GrafBuild.fan_out(:adj, @n)
-    assert {:isomorphic, _} = Graf.isomorphism(fin, fin)
-    assert {:isomorphic, _} = Graf.isomorphism(fout, fout)
-    assert :not_isomorphic == Graf.isomorphism(fin, fout)
+    fin = Build.fan_in(:adj, @n)
+    fout = Build.fan_out(:adj, @n)
+    assert {:isomorphic, _} = Morf.isomorphism(fin, fin)
+    assert {:isomorphic, _} = Morf.isomorphism(fout, fout)
+    assert :not_isomorphic == Morf.isomorphism(fin, fout)
   end
 
   test "wheel" do
@@ -119,7 +121,7 @@ defmodule Exa.Graf.GrafBuildTest do
     h1out = [0, 9, 0, 0, 0, 0, 0, 0, 0, 1]
     h1inout = [0, 0, 0, 9, 0, 0, 0, 0, 0, 1]
     h2inout = [{{0, 9}, 1}, {{2, 1}, 9}]
-    graphs = grafy(&GrafBuild.wheel/2, {h1in, h1out, h1inout, h2inout})
+    graphs = grafy(&Build.wheel/2, {h1in, h1out, h1inout, h2inout})
 
     for g <- graphs do
       comps = Graf.components(g, :weak)
@@ -137,7 +139,7 @@ defmodule Exa.Graf.GrafBuildTest do
     h1out = [0, 0, 0, 0, 0, 0, 0, 0, 0, 10]
     h1inout = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10]
     h2inout = [{{9, 9}, 10}]
-    graphs = grafy(&GrafBuild.clique/2, {h1in, h1out, h1inout, h2inout})
+    graphs = grafy(&Build.clique/2, {h1in, h1out, h1inout, h2inout})
 
     for g <- graphs do
       assert @n * (@n - 1) == Graf.nedge(g)
@@ -152,7 +154,7 @@ defmodule Exa.Graf.GrafBuildTest do
       assert 1 = Graf.ncomp(g, :weak)
       assert %{1 => Range.to_list(1..10)} == Mol.sort(comps)
 
-      h = Graf.degree_histo2d(g)
+      h = Morf.degree_histo2d(g)
       assert h == %{{9, 9} => 10}
       assert {:homo, {9, 9}} == Histo2D.homogeneous(h)
     end
@@ -166,7 +168,7 @@ defmodule Exa.Graf.GrafBuildTest do
 
     graphs =
       Enum.map([:adj, :dig], fn tag ->
-        g = GrafBuild.grid2d(tag, 4, 3)
+        g = Build.grid2d(tag, 4, 3)
         render(g, {h1in, h1out, h1inout, h2inout})
         g
       end)
@@ -182,7 +184,7 @@ defmodule Exa.Graf.GrafBuildTest do
 
   test "random" do
     for tag <- [:adj, :dig] do
-      g = GrafBuild.random(tag, @n, 2 * @n)
+      g = Build.random(tag, @n, 2 * @n)
       render(g)
       assert @n == Graf.nvert(g)
       assert 2 * @n == Graf.nedge(g)
@@ -192,13 +194,13 @@ defmodule Exa.Graf.GrafBuildTest do
   # read/write AGR format
 
   test "to file" do
-    path = GrafBuild.line(:adj, @n) |> Graf.to_adj_file(@out_dir)
+    path = Build.line(:adj, @n) |> Gio.to_adj_file(@out_dir)
     assert path == Path.join([@out_dir, "line_#{@n}." <> to_string(@filetype_adj)])
   end
 
   test "from file" do
-    line = "line_#{@n}" |> in_file() |> Graf.from_adj_file()
-    assert Graf.equal?(line, GrafBuild.line(:adj, @n))
+    line = "line_#{@n}" |> in_file() |> Gio.from_adj_file()
+    assert Graf.equal?(line, Build.line(:adj, @n))
   end
 
   # -----------------
@@ -215,12 +217,12 @@ defmodule Exa.Graf.GrafBuildTest do
   end
 
   defp render(g, result \\ nil) do
-    h1in = g |> Graf.degree_histo1d(:in) |> Histo1D.to_list()
-    h1out = g |> Graf.degree_histo1d(:out) |> Histo1D.to_list()
-    h1inout = g |> Graf.degree_histo1d(:in_out) |> Histo1D.to_list()
-    h2inout = g |> Graf.degree_histo2d() |> Histo2D.to_list()
+    h1in = g |> Morf.degree_histo1d(:in) |> Histo1D.to_list()
+    h1out = g |> Morf.degree_histo1d(:out) |> Histo1D.to_list()
+    h1inout = g |> Morf.degree_histo1d(:in_out) |> Histo1D.to_list()
+    h2inout = g |> Morf.degree_histo2d() |> Histo2D.to_list()
 
-    case Graf.to_adj_file(g, @out_dir) do
+    case Gio.to_adj_file(g, @out_dir) do
       {:error, msg} ->
         raise msg
 

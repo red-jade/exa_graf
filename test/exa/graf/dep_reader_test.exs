@@ -4,10 +4,10 @@ defmodule Exa.Graf.DepReaderTest do
   use Exa.Constants
   use Exa.Graf.Constants
 
-  alias Exa.Graf.Graf
-  alias Exa.Graf.DotRender
+  alias Exa.Graf.Gio
+  alias Exa.Graf.Gio.DotRender
 
-  import Exa.Graf.DepReader
+  import Exa.Graf.Gio.DepReader
 
   @in_dir Path.join(["test", "input", "graf", "dep"])
   @out_dir Path.join(["test", "output", "graf", "dep"])
@@ -17,7 +17,7 @@ defmodule Exa.Graf.DepReaderTest do
   test "simple" do
     for fname <- @in_dir |> File.ls() |> elem(1) do
       {g, gattrs} = fname |> in_file() |> from_dep_file()
-      {dotfile, _dot} = Graf.to_dot_file(g, @out_dir, gattrs)
+      {dotfile, _dot} = Gio.to_dot_file(g, @out_dir, gattrs)
 
       Enum.each([:png, :svg], fn fmt ->
         DotRender.render_dot(dotfile, fmt, @out_dir)

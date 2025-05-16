@@ -30,7 +30,7 @@ defimpl State, for: ForestSpan do
 
   # pop the stack, build the tree adjacency, push i into the parent child list
   def post_branch(%ForestSpan{dff: dff, lol: [js, is | lol]}, _g, i) do
-    {Mol.set(dff, i, Enum.reverse(js)), [[i | is] | lol]}
+    %ForestSpan{dff: Mol.set(dff, i, Enum.reverse(js)), lol: [[i | is] | lol]}
   end
 
   def final_result(%ForestSpan{dff: dff}), do: dff

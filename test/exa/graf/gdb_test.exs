@@ -5,10 +5,13 @@ defmodule Exa.Graf.GdbTest do
 
   alias Exa.Std.Histo1D
 
+  alias Exa.Graf.Contract
   alias Exa.Graf.Graf
-  alias Exa.Graf.GrafBuild
+  alias Exa.Graf.Build
   alias Exa.Graf.Gdb
-  alias Exa.Graf.Draw
+  alias Exa.Graf.Gio
+  alias Exa.Graf.Morf
+  alias Exa.Graf.Gio.Draw
 
   @out_dir Path.join(["test", "output", "graf", "all"])
 
@@ -19,9 +22,9 @@ defmodule Exa.Graf.GdbTest do
   # render  ---------
 
   test "simple" do
-    gin = Graf.from_adj_file(in_file("fan_in_10"))
-    gout = Graf.from_adj_file(in_file("fan_out_10"))
-    gwheel = Graf.from_adj_file(in_file("wheel_10"))
+    gin = Gio.from_adj_file(in_file("fan_in_10"))
+    gout = Gio.from_adj_file(in_file("fan_out_10"))
+    gwheel = Gio.from_adj_file(in_file("wheel_10"))
 
     # permute vertices on the fan-in graph
     inperm = Graf.rotate(gin)
@@ -83,14 +86,14 @@ defmodule Exa.Graf.GdbTest do
     {:gdb, isos, homeos, contras} =
       gdb = Gdb.new() |> Gdb.add(g32) |> Gdb.add(g32perm) |> Gdb.add(g41)
 
-    k32 = Graf.gkey(g32)
-    k41 = Graf.gkey(g41)
+    k32 = Morf.gkey(g32)
+    k41 = Morf.gkey(g41)
 
-    g32con = Graf.contract_linears(g32)
-    g32permcon = Graf.contract_linears(g32perm)
-    g41con = Graf.contract_linears(g41)
+    g32con = Contract.linears(g32)
+    g32permcon = Contract.linears(g32perm)
+    g41con = Contract.linears(g41)
 
-    kcon = Graf.gkey(g32con)
+    kcon = Morf.gkey(g32con)
 
     assert map_size(isos) == 2
     assert %{g41 => MapSet.new([g41])} == isos[k41]
@@ -144,7 +147,7 @@ defmodule Exa.Graf.GdbTest do
   end
 
   defp do_gdb(n, connected?, ng, nh) do
-    {:gdb, _, homeos, contras} = gdb = GrafBuild.all_graphs(n, connected?)
+    {:gdb, _, homeos, contras} = gdb = Build.all_graphs(n, connected?)
     IO.inspect(Gdb.ngraph(gdb), label: "n #{n} graphs")
     IO.inspect(Gdb.niso(gdb), label: "n #{n} isos")
     IO.inspect(Gdb.nhomeo(gdb), label: "n #{n} homeos")
@@ -180,7 +183,7 @@ defmodule Exa.Graf.GdbTest do
       opts = [edge_pair: :none]
 
       Enum.map(Gdb.isomorphisms(gdb), fn g ->
-        histo = Graf.degree_histo1d(g, :in_out)
+        histo = Morf.degree_histo1d(g, :in_out)
         hlist = Histo1D.to_list(histo)
         uhist = validate_histo(hlist, n)
         [all, nstr, code] = String.split(Graf.name(g), "_")

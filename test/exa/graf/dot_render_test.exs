@@ -2,7 +2,7 @@ defmodule Exa.Graf.DotRenderTest do
   use ExUnit.Case
 
   use Exa.Graf.Constants
-  import Exa.Graf.DotRender
+  import Exa.Graf.Gio.DotRender
 
   @in_dir ["test", "input", "graf", "dot"]
   @in_files ["abcd", "squares", "test123", "small", "petersen"]

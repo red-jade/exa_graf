@@ -64,7 +64,7 @@ defmodule Exa.Graf.TraverseTest do
     post = Dff.postorder(strong_dff)
     assert [8, 7, 3, 2, 1, 6, 5, 4] == post
 
-    trees = Dff.new(strong_dff, :strong)
+    trees = Dff.to_graph(strong_dff)
     assert [{1, 2}, {2, 3}, {3, 7}, {4, 5}, {5, 6}, {7, 8}] = Enum.sort(Graf.edges(trees))
 
     part = Dff.to_partition(strong_dff)

@@ -6,9 +6,11 @@ defmodule Exa.Graf.DotReaderTest do
   alias Exa.Std.Histo2D
 
   alias Exa.Graf.Adj
+  alias Exa.Graf.Gio
   alias Exa.Graf.Graf
+  alias Exa.Graf.Morf
 
-  import Exa.Graf.DotReader
+  import Exa.Graf.Gio.DotReader
 
   @in_dir Path.join(["test", "input", "graf", "dot"])
   @out_dir Path.join(["test", "output", "graf", "adj"])
@@ -22,11 +24,11 @@ defmodule Exa.Graf.DotReaderTest do
   test "missing file" do
     dne = "File does not exist"
     in_file = in_file("xyz")
-    {:error, %File.Error{path: ^in_file, action: ^dne}} = from_dot_file(in_file)
+    {:error, %File.Error{path: ^in_file, action: ^dne}} = Gio.from_dot_file(in_file)
   end
 
   test "small" do
-    {graph, gattrs} = "small" |> in_file() |> from_dot_file()
+    {graph, gattrs} = "small" |> in_file() |> Gio.from_dot_file()
     assert graph != :error
 
     edges =
@@ -80,17 +82,17 @@ defmodule Exa.Graf.DotReaderTest do
 
   test "dot input" do
     for file <- @in_files do
-      {graph, _gattrs} = file |> in_file() |> from_dot_file()
+      {graph, _gattrs} = file |> in_file() |> Gio.from_dot_file()
       #     assert graph != :error
       # IO.inspect(graph, label: "graph ")
       # IO.inspect(gattrs, label: "attrs")
-      Graf.to_adj_file(graph, @out_dir)
+      Gio.to_adj_file(graph, @out_dir)
     end
   end
 
   test "dot input petersen" do
-    {peter, _gattrs} = "petersen" |> in_file() |> from_dot_file()
-    h = Graf.degree_histo2d(peter)
+    {peter, _gattrs} = "petersen" |> in_file() |> Gio.from_dot_file()
+    h = Morf.degree_histo2d(peter)
     assert %{{3, 3} => 10} == h
     assert {:homo, {3, 3}} == Histo2D.homogeneous(h)
 

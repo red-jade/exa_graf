@@ -1,4 +1,4 @@
-defmodule Exa.Graf.GrafBuild do
+defmodule Exa.Graf.Build do
   @moduledoc """
   Utilities for building directed graphs.
   """
