@@ -1,4 +1,4 @@
-defmodule Exa.Graf.DepReader do
+defmodule Exa.Graf.Gio.DepReader do
   @moduledoc """
   Utilities to parse the text output of `mix deps.tree`.
   """
@@ -10,7 +10,7 @@ defmodule Exa.Graf.DepReader do
 
   import Exa.Graf.Types
   alias Exa.Graf.Types, as: G
-  alias Exa.Graf.DotTypes, as: D
+  alias Exa.Graf.Gio.DotTypes, as: D
 
   alias Exa.Graf.Graf
 

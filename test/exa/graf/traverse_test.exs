@@ -3,6 +3,7 @@ defmodule Exa.Graf.TraverseTest do
 
   use Exa.Graf.Constants
 
+  alias Exa.Graf.Dff
   alias Exa.Graf.Graf
   alias Exa.Graf.Traverse
 
@@ -18,18 +19,18 @@ defmodule Exa.Graf.TraverseTest do
   test "simple" do
     # simple rooted dag
     dag = Graf.build(:adj, "dag", [{1, 2}, {1, 3}, {3, 4}, {3, 5}, {4, 5}])
-    dff = Graf.spanning_forest(dag, :strong, 1)
+    dff = Dff.new(dag, :strong, 1)
     assert %{1 => [2, 3], 3 => [4], 4 => [5], :forest => [1]} = dff
 
     # Graf.dump_forest(dff)
-    pre = Graf.preorder(dff)
+    pre = Dff.preorder(dff)
     assert [1, 2, 3, 4, 5] == pre
-    post = Graf.postorder(dff)
+    post = Dff.postorder(dff)
     assert [2, 5, 4, 3, 1] == post
   end
 
   test "wikipedia scc" do
-    weak_dff = Graf.spanning_forest(@wiki, :weak)
+    weak_dff = Dff.new(@wiki, :weak)
 
     expect = %{
       1 => [2],
@@ -45,28 +46,28 @@ defmodule Exa.Graf.TraverseTest do
     assert expect == weak_dff
 
     # Graf.dump_forest(weak_dff)
-    pre = Graf.preorder(weak_dff)
+    pre = Dff.preorder(weak_dff)
     assert [1, 2, 3, 7, 8, 4, 5, 6] == pre
-    post = Graf.postorder(weak_dff)
+    post = Dff.postorder(weak_dff)
     assert [6, 5, 4, 8, 7, 3, 2, 1] == post
 
-    strong_dff = Graf.spanning_forest(@wiki, :strong)
+    strong_dff = Dff.new(@wiki, :strong)
 
     assert %{1 => [2], 2 => [3], 3 => [7], 4 => [5], 5 => [6], 7 => [8], :forest => [1, 4]} ==
              strong_dff
 
     # Graf.dump_forest(strong_dff)
 
-    pre = Graf.preorder(strong_dff)
+    pre = Dff.preorder(strong_dff)
     assert [1, 2, 3, 7, 8, 4, 5, 6] == pre
 
-    post = Graf.postorder(strong_dff)
+    post = Dff.postorder(strong_dff)
     assert [8, 7, 3, 2, 1, 6, 5, 4] == post
 
-    trees = Graf.forest_graph(strong_dff)
+    trees = Dff.new(strong_dff, :strong)
     assert [{1, 2}, {2, 3}, {3, 7}, {4, 5}, {5, 6}, {7, 8}] = Enum.sort(Graf.edges(trees))
 
-    part = Graf.forest_partition(strong_dff)
+    part = Dff.to_partition(strong_dff)
     assert %{1 => MapSet.new([1, 2, 3, 7, 8]), 4 => MapSet.new([4, 5, 6])} == part
   end
 

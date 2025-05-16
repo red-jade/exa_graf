@@ -9,11 +9,14 @@ defmodule Exa.Graf.Gdb do
   alias Exa.Std.Mos
 
   use Exa.Graf.Constants
-  import Exa.Graf.Types
 
+  import Exa.Graf.Types
   alias Exa.Graf.Types, as: G
 
-  alias Exa.Graf.Graf
+  alias Exa.Graf.Morf, as: M
+  alias Exa.Graf.Morf
+
+  alias Exa.Graf.Contract
 
   # -----
   # types
@@ -72,9 +75,9 @@ defmodule Exa.Graf.Gdb do
 
     @doc "Add a graph to the iso index."
     @spec add(T.iso_index(), G.graph()) :: T.iso_index()
-    def add(iso, g) when is_iso(iso) and is_graph(g), do: do_add(iso, Graf.gkey(g), g)
+    def add(iso, g) when is_iso(iso) and is_graph(g), do: do_add(iso, Morf.gkey(g), g)
 
-    @spec do_add(T.iso_index(), G.gkey(), G.graph()) :: T.iso_index()
+    @spec do_add(T.iso_index(), M.gkey(), G.graph()) :: T.iso_index()
 
     defp do_add(iso, gkey, g) when is_map_key(iso, gkey) do
       gmos = Map.fetch!(iso, gkey)
@@ -84,7 +87,7 @@ defmodule Exa.Graf.Gdb do
       # that is isomorphic or undecided status
       {gmos, updated?} =
         Enum.reduce(exs, {gmos, false}, fn ex, {gmos, _updated?} = acc ->
-          case Graf.isomorphism(g, ex) do
+          case Morf.isomorphism(g, ex) do
             :not_isomorphic -> acc
             _iso_or_undecided -> {Mos.add(gmos, ex, g), true}
           end
@@ -158,7 +161,7 @@ defmodule Exa.Graf.Gdb do
     """
     @spec query(T.iso_index(), G.graph()) :: MapSet.t(G.graph())
     def query(iso, g) when is_iso(iso) and is_graph(g) do
-      gkey = Graf.gkey(g)
+      gkey = Morf.gkey(g)
       gset = MapSet.new()
 
       case Map.get(iso, gkey) do
@@ -169,7 +172,7 @@ defmodule Exa.Graf.Gdb do
           # accumulate all graphs for every exemplar key 
           # that is isomorphic or undecided status
           Enum.reduce(Map.keys(gmos), gset, fn ex, gset ->
-            case Graf.isomorphism(g, ex) do
+            case Morf.isomorphism(g, ex) do
               :not_isomorphic -> gset
               _iso_or_undecided -> MapSet.union(gset, Mos.get(gmos, ex))
             end
@@ -191,7 +194,7 @@ defmodule Exa.Graf.Gdb do
   @doc "Add a graph to the GDB store."
   @spec add(T.gdb(), G.graph()) :: T.gdb()
   def add({:gdb, isos, homeos, contras}, g) when is_graph(g) do
-    con = Graf.contract_linears(g)
+    con = Contract.linears(g)
 
     # all graphs are added, not just those unique up to isomorphism
     {
@@ -266,7 +269,7 @@ defmodule Exa.Graf.Gdb do
   """
   @spec query_homeomorphic(T.gdb(), G.graph()) :: MapSet.t(G.graph())
   def query_homeomorphic({:gdb, _isos, homeos, contras}, g) when is_graph(g) do
-    con = Graf.contract_linears(g)
+    con = Contract.linears(g)
 
     homeos
     |> IsoIndex.query(con)

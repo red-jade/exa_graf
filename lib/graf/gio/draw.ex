@@ -1,4 +1,4 @@
-defmodule Exa.Graf.Draw do
+defmodule Exa.Graf.Gio.Draw do
   @moduledoc """
   Render directed graph to an image using GraphViz DOT format.
 
@@ -16,10 +16,11 @@ defmodule Exa.Graf.Draw do
   import Exa.Graf.Types
   alias Exa.Graf.Types, as: G
 
-  alias Exa.Graf.DotTypes, as: D
+  alias Exa.Graf.Gio.DotTypes, as: D
 
   alias Exa.Graf.Graf
-  alias Exa.Graf.DotRender
+  alias Exa.Graf.Gio
+  alias Exa.Graf.Gio.DotRender
 
   # ---------
   # constants
@@ -62,13 +63,13 @@ defmodule Exa.Graf.Draw do
 
   Optionally provide a partition for graph layers (stratified node groups),
   and direction flags for pairs and single edges.
-  See `Graf.to_dot_file/4` for full description of options.
+  See `Gio.to_dot_file/4` for full description of options.
   """
   @spec graph(G.graph(), E.filename(), D.graph_attrs(), D.format(), E.options()) ::
           E.filename() | {:error, any()}
   def graph(g, outdir, attrs \\ %{}, fmt \\ :png, opts \\ [])
       when is_graph(g) and is_map(attrs) and is_atom(fmt) and is_options(opts) do
-    case Graf.to_dot_file(g, outdir, attrs, opts) do
+    case Gio.to_dot_file(g, outdir, attrs, opts) do
       {:error, _} = err -> err
       {dot, _text} -> DotRender.render_dot(dot, fmt, outdir)
     end

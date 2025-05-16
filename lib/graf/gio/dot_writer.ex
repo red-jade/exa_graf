@@ -1,4 +1,4 @@
-defmodule Exa.Graf.DotWriter do
+defmodule Exa.Graf.Gio.DotWriter do
   @moduledoc """
   Utilities to write directed graphs in GraphViz DOT format.
   """
@@ -20,7 +20,7 @@ defmodule Exa.Graf.DotWriter do
 
   use Exa.Graf.Constants
   alias Exa.Graf.Types, as: G
-  alias Exa.Graf.DotTypes, as: D
+  alias Exa.Graf.Gio.DotTypes, as: D
 
   # constants ----------
 

@@ -1,4 +1,4 @@
-defmodule Exa.Graf.DotReader do
+defmodule Exa.Graf.Gio.DotReader do
   @moduledoc """
   Utilities to parse directed graphs from GraphViz DOT format.
 
@@ -12,7 +12,7 @@ defmodule Exa.Graf.DotReader do
 
   import Exa.Graf.Types
   alias Exa.Graf.Types, as: G
-  alias Exa.Graf.DotTypes, as: D
+  alias Exa.Graf.Gio.DotTypes, as: D
 
   alias Exa.Graf.Graf
 

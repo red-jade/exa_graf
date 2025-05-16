@@ -1,9 +1,13 @@
-defmodule Exa.Graf.DotTypes do
+defmodule Exa.Graf.Gio.DotTypes do
   @moduledoc """
   Types for handling GraphViz DOT format.
   """
 
   alias Exa.Graf.Types, as: G
+
+  # -----
+  # types
+  # -----
 
   @typedoc "A graph element is a node or an edge."
   @type dot_elem() :: G.vert() | G.edge()

@@ -1,4 +1,4 @@
-defmodule Exa.Graf.DotRender do
+defmodule Exa.Graf.Gio.DotRender do
   @moduledoc """
   Render directed graph in GraphViz DOT format.
 
@@ -11,7 +11,7 @@ defmodule Exa.Graf.DotRender do
 
   alias Exa.Types, as: E
 
-  alias Exa.Graf.DotTypes, as: D
+  alias Exa.Graf.Gio.DotTypes, as: D
 
   # ---------
   # constants
